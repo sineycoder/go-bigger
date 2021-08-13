@@ -1,6 +1,9 @@
 package main
 
-import "github.com/SineyCoder/go_big_integer/big_integer"
+import (
+	"fmt"
+	"github.com/SineyCoder/go_big_integer/big_integer"
+)
 
 /**
  @author: nizhenxian
@@ -10,5 +13,5 @@ func main() {
 	a := big_integer.ValueOf(6782613786431)
 	b := big_integer.ValueOf(-678261378231)
 	res := a.Multiply(b)
-	println(res.String())
+	fmt.Println(res.String())
 }

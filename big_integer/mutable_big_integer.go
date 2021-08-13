@@ -13,35 +13,35 @@ import (
 **/
 
 const (
-	KNUTH_POW2_THRESH_LEN   = 6
-	KNUTH_POW2_THRESH_ZEROS = 3
+	p_KNUTH_POW2_THRESH_LEN   = 6
+	p_KNUTH_POW2_THRESH_ZEROS = 3
 )
 
 var (
-	MUTABLE_ONE = NewMutableBigInteger(1)
+	mutable_one = newMutableBigInteger(1)
 )
 
-type MutableBigInteger struct {
+type mutableBigInteger struct {
 	value  []types.Int
 	intLen types.Int
 	offset types.Int
 }
 
-func (m *MutableBigInteger) Divide(b *MutableBigInteger, quotient *MutableBigInteger) *MutableBigInteger {
+func (m *mutableBigInteger) Divide(b *mutableBigInteger, quotient *mutableBigInteger) *mutableBigInteger {
 	return m.divideRemainder(b, quotient, true)
 }
 
-func (m *MutableBigInteger) divideRemainder(b *MutableBigInteger, quotient *MutableBigInteger, needRemainder bool) *MutableBigInteger {
-	if b.intLen < BURNIKEL_ZIEGLER_THRESHOLD ||
-		m.intLen-b.intLen < BURNIKEL_ZIEGLER_OFFSET {
-		return m.DivideKnuth(b, quotient, needRemainder)
+func (m *mutableBigInteger) divideRemainder(b *mutableBigInteger, quotient *mutableBigInteger, needRemainder bool) *mutableBigInteger {
+	if b.intLen < p_BURNIKEL_ZIEGLER_THRESHOLD ||
+		m.intLen-b.intLen < p_BURNIKEL_ZIEGLER_OFFSET {
+		return m.divideKnuth(b, quotient, needRemainder)
 	} else {
 		return m.DivideAndRemainderBurnikelZiegler(b, quotient)
 	}
 
 }
 
-func (m *MutableBigInteger) DivideKnuth(b *MutableBigInteger, quotient *MutableBigInteger, needRemainder bool) *MutableBigInteger {
+func (m *mutableBigInteger) divideKnuth(b *mutableBigInteger, quotient *mutableBigInteger, needRemainder bool) *mutableBigInteger {
 	if b.intLen == 0 {
 		panic(errors.New("BigInteger divide by zero"))
 	}
@@ -50,7 +50,7 @@ func (m *MutableBigInteger) DivideKnuth(b *MutableBigInteger, quotient *MutableB
 		quotient.intLen = 0
 		quotient.offset = 0
 		if needRemainder {
-			return NewMutableBigIntegerDefault()
+			return newMutableBigIntegerDefault()
 		} else {
 			return nil
 		}
@@ -61,7 +61,7 @@ func (m *MutableBigInteger) DivideKnuth(b *MutableBigInteger, quotient *MutableB
 		quotient.intLen = 0
 		quotient.offset = 0
 		if needRemainder {
-			return NewMutableBigIntegerObject(m)
+			return newMutableBigIntegerObject(m)
 		} else {
 			return nil
 		}
@@ -72,7 +72,7 @@ func (m *MutableBigInteger) DivideKnuth(b *MutableBigInteger, quotient *MutableB
 		quotient.intLen = 1
 		quotient.offset = 0
 		if needRemainder {
-			return NewMutableBigIntegerDefault()
+			return newMutableBigIntegerDefault()
 		} else {
 			return nil
 		}
@@ -83,22 +83,22 @@ func (m *MutableBigInteger) DivideKnuth(b *MutableBigInteger, quotient *MutableB
 		r := m.divideOneWord(b.value[b.offset], quotient)
 		if needRemainder {
 			if r == 0 {
-				return NewMutableBigIntegerDefault()
+				return newMutableBigIntegerDefault()
 			}
-			return NewMutableBigInteger(r)
+			return newMutableBigInteger(r)
 		} else {
 			return nil
 		}
 	}
 
-	if m.intLen >= KNUTH_POW2_THRESH_LEN {
+	if m.intLen >= p_KNUTH_POW2_THRESH_LEN {
 		trailingZeroBits := types.Int(math.Min(float64(m.getLowestSetBit()), float64(b.getLowestSetBit())))
-		if trailingZeroBits >= KNUTH_POW2_THRESH_ZEROS*32 {
-			a := NewMutableBigIntegerObject(m)
-			b = NewMutableBigIntegerObject(b)
+		if trailingZeroBits >= p_KNUTH_POW2_THRESH_ZEROS*32 {
+			a := newMutableBigIntegerObject(m)
+			b = newMutableBigIntegerObject(b)
 			a.rightShift(trailingZeroBits)
 			b.rightShift(trailingZeroBits)
-			r := a.DivideKnuth(b, quotient, true)
+			r := a.divideKnuth(b, quotient, true)
 			r.leftShift(trailingZeroBits)
 			return r
 		}
@@ -107,7 +107,7 @@ func (m *MutableBigInteger) DivideKnuth(b *MutableBigInteger, quotient *MutableB
 	return m.divideMagnitude(b, quotient, needRemainder)
 }
 
-func (m *MutableBigInteger) getLowestSetBit() types.Int {
+func (m *mutableBigInteger) getLowestSetBit() types.Int {
 	if m.intLen == 0 {
 		return -1
 	}
@@ -121,7 +121,7 @@ func (m *MutableBigInteger) getLowestSetBit() types.Int {
 	return ((m.intLen - 1 - j) << 5) + NumberOfTrailingZeros(b)
 }
 
-func (m MutableBigInteger) compare(b *MutableBigInteger) types.Int {
+func (m mutableBigInteger) compare(b *mutableBigInteger) types.Int {
 	blen := types.Int(b.intLen)
 	if m.intLen < blen {
 		return -1
@@ -146,7 +146,7 @@ func (m MutableBigInteger) compare(b *MutableBigInteger) types.Int {
 	return 0
 }
 
-func (m *MutableBigInteger) clear() {
+func (m *mutableBigInteger) clear() {
 	m.offset = 0
 	m.intLen = 0
 	index, n := 0, len(m.value)
@@ -155,7 +155,7 @@ func (m *MutableBigInteger) clear() {
 	}
 }
 
-func (m *MutableBigInteger) rightShift(n types.Int) {
+func (m *mutableBigInteger) rightShift(n types.Int) {
 	if m.intLen == 0 {
 		return
 	}
@@ -165,7 +165,7 @@ func (m *MutableBigInteger) rightShift(n types.Int) {
 	if nBits == 0 {
 		return
 	}
-	bitsInHighWord := BitLengthForInt(m.value[m.offset])
+	bitsInHighWord := bitLengthForInt(m.value[m.offset])
 	if nBits >= bitsInHighWord {
 		m.primitiveLeftShift(32 - nBits)
 		m.intLen--
@@ -174,7 +174,7 @@ func (m *MutableBigInteger) rightShift(n types.Int) {
 	}
 }
 
-func (m *MutableBigInteger) primitiveLeftShift(n types.Int) {
+func (m *mutableBigInteger) primitiveLeftShift(n types.Int) {
 	val := m.value
 	n2 := 32 - n
 	i := m.offset
@@ -189,7 +189,7 @@ func (m *MutableBigInteger) primitiveLeftShift(n types.Int) {
 
 }
 
-func (m *MutableBigInteger) primitiveRightShift(n types.Int) {
+func (m *mutableBigInteger) primitiveRightShift(n types.Int) {
 	val := m.value
 	n2 := 32 - n
 	i := m.offset + m.intLen - 1
@@ -202,13 +202,13 @@ func (m *MutableBigInteger) primitiveRightShift(n types.Int) {
 	val[m.offset] = val[m.offset].ShiftR(n)
 }
 
-func (m *MutableBigInteger) leftShift(n types.Int) {
+func (m *mutableBigInteger) leftShift(n types.Int) {
 	if m.intLen == 0 {
 		return
 	}
 	nInts := n.ShiftR(5)
 	nBits := n & 0x1f
-	bitsInHighWord := BitLengthForInt(m.value[m.offset])
+	bitsInHighWord := bitLengthForInt(m.value[m.offset])
 
 	if n <= (32 - bitsInHighWord) {
 		m.primitiveLeftShift(nBits)
@@ -251,29 +251,29 @@ func (m *MutableBigInteger) leftShift(n types.Int) {
 
 }
 
-func (m *MutableBigInteger) setValue(val []types.Int, length types.Int) {
+func (m *mutableBigInteger) setValue(val []types.Int, length types.Int) {
 	m.value = val
 	m.intLen = length
 	m.offset = 0
 }
 
-func (m *MutableBigInteger) divideMagnitude(div *MutableBigInteger, quotient *MutableBigInteger, needRemainder bool) *MutableBigInteger {
+func (m *mutableBigInteger) divideMagnitude(div *mutableBigInteger, quotient *mutableBigInteger, needRemainder bool) *mutableBigInteger {
 	shift := NumberOfLeadingZeros(div.value[div.offset])
 	dlen := div.intLen
 	var divisor []types.Int
-	var rem *MutableBigInteger
+	var rem *mutableBigInteger
 	if shift > 0 {
 		divisor = make([]types.Int, dlen)
 		copyAndShift(div.value, div.offset, dlen, divisor, 0, shift)
 		if NumberOfLeadingZeros(m.value[m.offset]) >= shift {
 			remarr := make([]types.Int, m.intLen+1)
-			rem = NewMutableBigIntegerArray(remarr)
+			rem = newMutableBigIntegerArray(remarr)
 			rem.intLen = m.intLen
 			rem.offset = 1
 			copyAndShift(m.value, m.offset, m.intLen, remarr, 1, shift)
 		} else {
 			remarr := make([]types.Int, m.intLen+2)
-			rem = NewMutableBigIntegerArray(remarr)
+			rem = newMutableBigIntegerArray(remarr)
 			rem.intLen = m.intLen + 1
 			rem.offset = 1
 			rFrom := m.offset
@@ -289,7 +289,7 @@ func (m *MutableBigInteger) divideMagnitude(div *MutableBigInteger, quotient *Mu
 		}
 	} else {
 		divisor = tool.CopyRange(div.value, m.offset, m.offset+m.intLen)
-		rem = NewMutableBigIntegerArray(make([]types.Int, m.intLen+1))
+		rem = newMutableBigIntegerArray(make([]types.Int, m.intLen+1))
 		Arraycopy(m.value, m.offset, rem.value, 1, m.intLen)
 		rem.intLen = m.intLen
 		rem.offset = 1
@@ -312,7 +312,7 @@ func (m *MutableBigInteger) divideMagnitude(div *MutableBigInteger, quotient *Mu
 	}
 
 	dh := divisor[0]
-	dhLong := dh.ToLong() & LONG_MASK
+	dhLong := dh.ToLong() & p_LONG_MASK
 	dl := divisor[1]
 
 	// D2 Initialize j
@@ -329,13 +329,13 @@ func (m *MutableBigInteger) divideMagnitude(div *MutableBigInteger, quotient *Mu
 			qrem = nh + nm
 			skipCorrection = qrem+MIN_INT32 < nh2
 		} else {
-			nChunk := (nh.ToLong() << 32) | (nm.ToLong() & LONG_MASK)
+			nChunk := (nh.ToLong() << 32) | (nm.ToLong() & p_LONG_MASK)
 			if nChunk >= 0 {
 				qhat = (nChunk / dhLong).ToInt()
 				qrem = (nChunk - (qhat.ToLong() * dhLong)).ToInt()
 			} else {
 				tmp := divWord(nChunk, dh)
-				qhat = (tmp & LONG_MASK).ToInt()
+				qhat = (tmp & p_LONG_MASK).ToInt()
 				qrem = (tmp.ShiftR(32)).ToInt()
 			}
 		}
@@ -345,16 +345,16 @@ func (m *MutableBigInteger) divideMagnitude(div *MutableBigInteger, quotient *Mu
 		}
 
 		if !skipCorrection {
-			nl := rem.value[j+2+rem.offset].ToLong() & LONG_MASK
-			rs := ((qrem.ToLong() & LONG_MASK) << 32) | nl
-			estProduct := (dl.ToLong() & LONG_MASK) * (qhat.ToLong() & LONG_MASK)
+			nl := rem.value[j+2+rem.offset].ToLong() & p_LONG_MASK
+			rs := ((qrem.ToLong() & p_LONG_MASK) << 32) | nl
+			estProduct := (dl.ToLong() & p_LONG_MASK) * (qhat.ToLong() & p_LONG_MASK)
 
 			if unsignedLongCompare(estProduct, rs) {
 				qhat--
-				qrem = ((qrem.ToLong() & LONG_MASK) + dhLong).ToInt()
-				if (qrem.ToLong() & LONG_MASK) >= dhLong {
-					estProduct -= (dl.ToLong() & LONG_MASK)
-					rs = ((qrem.ToLong() & LONG_MASK) << 32) | nl
+				qrem = ((qrem.ToLong() & p_LONG_MASK) + dhLong).ToInt()
+				if (qrem.ToLong() & p_LONG_MASK) >= dhLong {
+					estProduct -= (dl.ToLong() & p_LONG_MASK)
+					rs = ((qrem.ToLong() & p_LONG_MASK) << 32) | nl
 					if unsignedLongCompare(estProduct, rs) {
 						qhat--
 					}
@@ -362,7 +362,7 @@ func (m *MutableBigInteger) divideMagnitude(div *MutableBigInteger, quotient *Mu
 			}
 		}
 
-		// D4 Multiply and subtract
+		// D4 Multiply and Subtract
 		rem.value[j+rem.offset] = 0
 		borrow := m.mulsub(rem.value, divisor, qhat, dlen, j+rem.offset)
 
@@ -385,28 +385,28 @@ func (m *MutableBigInteger) divideMagnitude(div *MutableBigInteger, quotient *Mu
 		qrem = nh + nm
 		skipCorrection = qrem+MIN_INT32 < nh2
 	} else {
-		nChunk := ((nh.ToLong()) << 32) | (nm.ToLong() & LONG_MASK)
+		nChunk := ((nh.ToLong()) << 32) | (nm.ToLong() & p_LONG_MASK)
 		if nChunk >= 0 {
 			qhat = (nChunk / dhLong).ToInt()
 			qrem = (nChunk - (qhat.ToLong() * dhLong)).ToInt()
 		} else {
 			tmp := divWord(nChunk, dh)
-			qhat = (tmp & LONG_MASK).ToInt()
+			qhat = (tmp & p_LONG_MASK).ToInt()
 			qrem = tmp.ShiftR(32).ToInt()
 		}
 	}
 	if qhat != 0 {
 		if !skipCorrection {
-			nl := rem.value[limit+1+rem.offset].ToLong() & LONG_MASK
-			rs := ((qrem.ToLong() & LONG_MASK) << 32) | nl
-			estProduct := (dl.ToLong() & LONG_MASK) * (qhat.ToLong() & LONG_MASK)
+			nl := rem.value[limit+1+rem.offset].ToLong() & p_LONG_MASK
+			rs := ((qrem.ToLong() & p_LONG_MASK) << 32) | nl
+			estProduct := (dl.ToLong() & p_LONG_MASK) * (qhat.ToLong() & p_LONG_MASK)
 
 			if unsignedLongCompare(estProduct, rs) {
 				qhat--
-				qrem = ((qrem.ToLong() & LONG_MASK) + dhLong).ToInt()
-				if (qrem.ToLong() & LONG_MASK) >= dhLong {
-					estProduct -= dl.ToLong() & LONG_MASK
-					rs = ((qrem.ToLong() & LONG_MASK) << 32) | nl
+				qrem = ((qrem.ToLong() & p_LONG_MASK) + dhLong).ToInt()
+				if (qrem.ToLong() & p_LONG_MASK) >= dhLong {
+					estProduct -= dl.ToLong() & p_LONG_MASK
+					rs = ((qrem.ToLong() & p_LONG_MASK) << 32) | nl
 					if unsignedLongCompare(estProduct, rs) {
 						qhat--
 					}
@@ -445,18 +445,18 @@ func (m *MutableBigInteger) divideMagnitude(div *MutableBigInteger, quotient *Mu
 	}
 }
 
-func (m *MutableBigInteger) mulsub(q []types.Int, a []types.Int, x types.Int, length types.Int, offset types.Int) types.Int {
-	xLong := x.ToLong() & LONG_MASK
+func (m *mutableBigInteger) mulsub(q []types.Int, a []types.Int, x types.Int, length types.Int, offset types.Int) types.Int {
+	xLong := x.ToLong() & p_LONG_MASK
 	carry := types.Long(0)
 	offset += length
 
 	for j := length - 1; j >= 0; j-- {
-		product := (a[j].ToLong()&LONG_MASK)*xLong + carry
+		product := (a[j].ToLong()&p_LONG_MASK)*xLong + carry
 		difference := q[offset].ToLong() - product
 		q[offset] = difference.ToInt()
 		offset--
 		carry = product.ShiftR(32)
-		if (difference & LONG_MASK) > ((^product.ToInt()).ToLong() & LONG_MASK) {
+		if (difference & p_LONG_MASK) > ((^product.ToInt()).ToLong() & p_LONG_MASK) {
 			carry += 1
 		}
 	}
@@ -464,12 +464,12 @@ func (m *MutableBigInteger) mulsub(q []types.Int, a []types.Int, x types.Int, le
 	return carry.ToInt()
 }
 
-func (m *MutableBigInteger) divadd(a []types.Int, result []types.Int, offset types.Int) types.Int {
+func (m *mutableBigInteger) divadd(a []types.Int, result []types.Int, offset types.Int) types.Int {
 	carry := types.Long(0)
 
 	for j := types.Int(len(a)) - 1; j >= 0; j-- {
-		sum := (a[j].ToLong() & LONG_MASK) +
-			(result[j+offset].ToLong() & LONG_MASK) + carry
+		sum := (a[j].ToLong() & p_LONG_MASK) +
+			(result[j+offset].ToLong() & p_LONG_MASK) + carry
 		result[j+offset] = sum.ToInt()
 		carry = sum.ShiftR(32)
 	}
@@ -477,17 +477,17 @@ func (m *MutableBigInteger) divadd(a []types.Int, result []types.Int, offset typ
 }
 
 //The method is the same as mulsub, except the fact that q array is not updated, the only result of the method is borrow flag.
-func (m *MutableBigInteger) mulsubBorrow(q []types.Int, a []types.Int, x types.Int, length types.Int, offset types.Int) types.Int {
-	xLong := x.ToLong() & LONG_MASK
+func (m *mutableBigInteger) mulsubBorrow(q []types.Int, a []types.Int, x types.Int, length types.Int, offset types.Int) types.Int {
+	xLong := x.ToLong() & p_LONG_MASK
 	carry := types.Long(0)
 	offset += length
 
 	for j := length - 1; j >= 0; j-- {
-		product := (a[j].ToLong()&LONG_MASK)*xLong + carry
+		product := (a[j].ToLong()&p_LONG_MASK)*xLong + carry
 		difference := q[offset].ToLong() - product
 		offset--
 		carry = product.ShiftR(32)
-		if (difference & LONG_MASK) > ((^product.ToInt()).ToLong() & LONG_MASK) {
+		if (difference & p_LONG_MASK) > ((^product.ToInt()).ToLong() & p_LONG_MASK) {
 			carry += 1
 		}
 	}
@@ -495,7 +495,7 @@ func (m *MutableBigInteger) mulsubBorrow(q []types.Int, a []types.Int, x types.I
 	return carry.ToInt()
 }
 
-func (m *MutableBigInteger) normalize() {
+func (m *mutableBigInteger) normalize() {
 	if m.intLen == 0 {
 		m.offset = 0
 		return
@@ -521,30 +521,30 @@ func (m *MutableBigInteger) normalize() {
 	}
 }
 
-func (m *MutableBigInteger) ToBigInteger(sign types.Int) *BigInteger {
+func (m *mutableBigInteger) toBigInteger(sign types.Int) *BigInteger {
 	if m.intLen == 0 || sign == 0 {
 		return ZERO
 	}
-	return NewBigInteger(m.getMagnitudeArray(), sign)
+	return newBigInteger(m.getMagnitudeArray(), sign)
 }
 
-func (m *MutableBigInteger) ToBigIntegerDefault() *BigInteger {
+func (m *mutableBigInteger) ToBigIntegerDefault() *BigInteger {
 	m.normalize()
 	if m.IsZero() {
-		return m.ToBigInteger(0)
+		return m.toBigInteger(0)
 	} else {
-		return m.ToBigInteger(1)
+		return m.toBigInteger(1)
 	}
 }
 
-func (m *MutableBigInteger) getMagnitudeArray() []types.Int {
+func (m *mutableBigInteger) getMagnitudeArray() []types.Int {
 	if m.offset > 0 || types.Int(len(m.value)) != m.intLen {
 		return tool.CopyRange(m.value, m.offset, m.offset+m.intLen)
 	}
 	return m.value
 }
 
-func (m *MutableBigInteger) DivideAndRemainderBurnikelZiegler(b *MutableBigInteger, quotient *MutableBigInteger) *MutableBigInteger {
+func (m *mutableBigInteger) DivideAndRemainderBurnikelZiegler(b *mutableBigInteger, quotient *mutableBigInteger) *mutableBigInteger {
 	r := m.intLen
 	s := b.intLen
 
@@ -556,15 +556,15 @@ func (m *MutableBigInteger) DivideAndRemainderBurnikelZiegler(b *MutableBigInteg
 	} else {
 		var m2, j, n, sigma types.Int
 		var n32 types.Long
-		// step 1: let m = min{2^k | (2^k)*BURNIKEL_ZIEGLER_THRESHOLD > s}
-		m2 = 1 << (32 - NumberOfLeadingZeros(s/BURNIKEL_ZIEGLER_THRESHOLD))
+		// step 1: let m = min{2^k | (2^k)*p_BURNIKEL_ZIEGLER_THRESHOLD > s}
+		m2 = 1 << (32 - NumberOfLeadingZeros(s/p_BURNIKEL_ZIEGLER_THRESHOLD))
 		j = (s + m2 - 1) / m2 // step 2a: j = ceil(s/m)
 		n = j * m2            // step 2b: block length in 32-bit units
 		n32 = 32 * n.ToLong()
 		sigma = tool.MaxLong(0, n32-b.BitLength()).ToInt()
-		bShifted := NewMutableBigIntegerObject(b)
+		bShifted := newMutableBigIntegerObject(b)
 		bShifted.safeLeftShift(sigma)
-		ashifted := NewMutableBigIntegerObject(m)
+		ashifted := newMutableBigIntegerObject(m)
 		ashifted.safeLeftShift(sigma)
 
 		t := ((ashifted.BitLength() + n32) / n32).ToInt()
@@ -576,8 +576,8 @@ func (m *MutableBigInteger) DivideAndRemainderBurnikelZiegler(b *MutableBigInteg
 		z := ashifted.getBlock(t-2, t, n)
 		z.addDisjoint(a1, n)
 
-		qi := NewMutableBigIntegerDefault()
-		var ri *MutableBigInteger
+		qi := newMutableBigIntegerDefault()
+		var ri *mutableBigInteger
 		for i := t - 2; i > 0; i-- {
 			ri = z.divide2n1n(bShifted, qi)
 			z = ashifted.getBlock(i-1, t, n)
@@ -593,23 +593,23 @@ func (m *MutableBigInteger) DivideAndRemainderBurnikelZiegler(b *MutableBigInteg
 	}
 }
 
-func (m *MutableBigInteger) BitLength() types.Long {
+func (m *mutableBigInteger) BitLength() types.Long {
 	if m.intLen == 0 {
 		return 0
 	}
 	return types.Long(m.intLen)*32 - types.Long(NumberOfLeadingZeros(m.value[m.offset]))
 }
 
-func (m *MutableBigInteger) safeLeftShift(n types.Int) {
+func (m *mutableBigInteger) safeLeftShift(n types.Int) {
 	if n > 0 {
 		m.leftShift(n)
 	}
 }
 
-func (m *MutableBigInteger) getBlock(index types.Int, numBlocks types.Int, blockLength types.Int) *MutableBigInteger {
+func (m *mutableBigInteger) getBlock(index types.Int, numBlocks types.Int, blockLength types.Int) *mutableBigInteger {
 	blockStart := index * blockLength
 	if blockStart >= m.intLen {
-		return NewMutableBigIntegerDefault()
+		return newMutableBigIntegerDefault()
 	}
 
 	var blockEnd types.Int
@@ -619,14 +619,14 @@ func (m *MutableBigInteger) getBlock(index types.Int, numBlocks types.Int, block
 		blockEnd = (index + 1) * blockLength
 	}
 	if blockEnd > m.intLen {
-		return NewMutableBigIntegerDefault()
+		return newMutableBigIntegerDefault()
 	}
 
 	newVal := tool.CopyRange(m.value, m.offset+m.intLen-blockEnd, m.offset+m.intLen-blockStart)
-	return NewMutableBigIntegerArray(newVal)
+	return newMutableBigIntegerArray(newVal)
 }
 
-func (m *MutableBigInteger) addDisjoint(addend *MutableBigInteger, n types.Int) {
+func (m *mutableBigInteger) addDisjoint(addend *mutableBigInteger, n types.Int) {
 	if addend.IsZero() {
 		return
 	}
@@ -667,22 +667,22 @@ func (m *MutableBigInteger) addDisjoint(addend *MutableBigInteger, n types.Int) 
 	m.offset = types.Int(len(result)) - resultLen
 }
 
-func (m *MutableBigInteger) IsZero() bool {
+func (m *mutableBigInteger) IsZero() bool {
 	return m.intLen == 0
 }
 
-func (m *MutableBigInteger) divide2n1n(b *MutableBigInteger, quotient *MutableBigInteger) *MutableBigInteger {
+func (m *mutableBigInteger) divide2n1n(b *mutableBigInteger, quotient *mutableBigInteger) *mutableBigInteger {
 	n := m.intLen
 
-	if n%2 != 0 || n < BURNIKEL_ZIEGLER_THRESHOLD {
-		return m.DivideKnuth(b, quotient, true)
+	if n%2 != 0 || n < p_BURNIKEL_ZIEGLER_THRESHOLD {
+		return m.divideKnuth(b, quotient, true)
 	}
 
-	aUpper := NewMutableBigIntegerObject(m)
+	aUpper := newMutableBigIntegerObject(m)
 	aUpper.safeRightShift(32 * (n / 2))
 	m.keepLower(n / 2)
 
-	q1 := NewMutableBigIntegerDefault()
+	q1 := newMutableBigIntegerDefault()
 	r1 := aUpper.divide3n2n(b, q1)
 
 	m.addDisjoint(r1, n/2)
@@ -692,7 +692,7 @@ func (m *MutableBigInteger) divide2n1n(b *MutableBigInteger, quotient *MutableBi
 	return r2
 }
 
-func (m *MutableBigInteger) safeRightShift(n types.Int) {
+func (m *mutableBigInteger) safeRightShift(n types.Int) {
 	if n/32 >= m.intLen {
 		m.reset()
 	} else {
@@ -700,32 +700,32 @@ func (m *MutableBigInteger) safeRightShift(n types.Int) {
 	}
 }
 
-func (m *MutableBigInteger) reset() {
+func (m *mutableBigInteger) reset() {
 	m.offset = 0
 	m.intLen = 0
 }
 
-func (m *MutableBigInteger) keepLower(n types.Int) {
+func (m *mutableBigInteger) keepLower(n types.Int) {
 	if m.intLen >= n {
 		m.offset += m.intLen - n
 		m.intLen = n
 	}
 }
 
-func (m *MutableBigInteger) divide3n2n(b *MutableBigInteger, quotient *MutableBigInteger) *MutableBigInteger {
+func (m *mutableBigInteger) divide3n2n(b *mutableBigInteger, quotient *mutableBigInteger) *mutableBigInteger {
 	n := b.intLen / 2
 
-	a12 := NewMutableBigIntegerObject(m)
+	a12 := newMutableBigIntegerObject(m)
 	a12.safeRightShift(32 * n)
 
-	b1 := NewMutableBigIntegerObject(b)
+	b1 := newMutableBigIntegerObject(b)
 	b1.safeRightShift(n * 32)
 	b2 := b.getLower(n)
 
-	var r, d *MutableBigInteger
+	var r, d *mutableBigInteger
 	if m.compareShifted(b, n) < 0 {
 		r = a12.divide2n1n(b1, quotient)
-		d = NewMutableBigIntegerByBigInteger(quotient.ToBigIntegerDefault().Multiply(b2))
+		d = newMutableBigIntegerByBigInteger(quotient.ToBigIntegerDefault().Multiply(b2))
 	} else {
 		quotient.ones(n)
 		a12.add(b1)
@@ -733,9 +733,9 @@ func (m *MutableBigInteger) divide3n2n(b *MutableBigInteger, quotient *MutableBi
 		a12.subtract(b1)
 		r = a12
 
-		d = NewMutableBigIntegerByBigInteger(b2)
+		d = newMutableBigIntegerByBigInteger(b2)
 		d.leftShift(32 * n)
-		d.subtract(NewMutableBigIntegerByBigInteger(b2))
+		d.subtract(newMutableBigIntegerByBigInteger(b2))
 	}
 
 	r.leftShift(32 * n)
@@ -743,18 +743,18 @@ func (m *MutableBigInteger) divide3n2n(b *MutableBigInteger, quotient *MutableBi
 
 	for r.compare(d) < 0 {
 		r.add(b)
-		quotient.subtract(MUTABLE_ONE)
+		quotient.subtract(mutable_one)
 	}
 	r.subtract(d)
 
 	return r
 }
 
-func (m *MutableBigInteger) getLower(n types.Int) *BigInteger {
+func (m *mutableBigInteger) getLower(n types.Int) *BigInteger {
 	if m.IsZero() {
 		return ZERO
 	} else if m.intLen < n {
-		return m.ToBigInteger(1)
+		return m.toBigInteger(1)
 	} else {
 		length := n
 		for length > 0 && m.value[m.offset+m.intLen-length] == 0 {
@@ -766,11 +766,11 @@ func (m *MutableBigInteger) getLower(n types.Int) *BigInteger {
 		} else {
 			sign = 0
 		}
-		return NewBigInteger(tool.CopyRange(m.value, m.offset+m.intLen-length, m.offset+m.intLen), sign)
+		return newBigInteger(tool.CopyRange(m.value, m.offset+m.intLen-length, m.offset+m.intLen), sign)
 	}
 }
 
-func (m *MutableBigInteger) compareShifted(b *MutableBigInteger, ints types.Int) types.Int {
+func (m *mutableBigInteger) compareShifted(b *mutableBigInteger, ints types.Int) types.Int {
 	blen := b.intLen
 	alen := m.intLen - ints
 	if alen < blen {
@@ -797,7 +797,7 @@ func (m *MutableBigInteger) compareShifted(b *MutableBigInteger, ints types.Int)
 	return 0
 }
 
-func (m *MutableBigInteger) ones(n types.Int) {
+func (m *mutableBigInteger) ones(n types.Int) {
 	if n > types.Int(len(m.value)) {
 		m.value = make([]types.Int, n)
 	}
@@ -806,7 +806,7 @@ func (m *MutableBigInteger) ones(n types.Int) {
 	m.intLen = n
 }
 
-func (m *MutableBigInteger) add(addend *MutableBigInteger) {
+func (m *mutableBigInteger) add(addend *mutableBigInteger) {
 	x := m.intLen
 	y := addend.intLen
 	var (
@@ -830,8 +830,8 @@ func (m *MutableBigInteger) add(addend *MutableBigInteger) {
 	for x > 0 && y > 0 {
 		x--
 		y--
-		sum = (m.value[x+m.offset].ToLong() & LONG_MASK) +
-			(addend.value[y+addend.offset].ToLong() & LONG_MASK) + carry
+		sum = (m.value[x+m.offset].ToLong() & p_LONG_MASK) +
+			(addend.value[y+addend.offset].ToLong() & p_LONG_MASK) + carry
 		result[rstart] = sum.ToInt()
 		rstart--
 		carry = sum.ShiftR(32)
@@ -842,7 +842,7 @@ func (m *MutableBigInteger) add(addend *MutableBigInteger) {
 		if carry == 0 && tool.IntEqual(result, m.value) && rstart == (x+m.offset) {
 			return
 		}
-		sum = (m.value[x+m.offset].ToLong() & LONG_MASK) + carry
+		sum = (m.value[x+m.offset].ToLong() & p_LONG_MASK) + carry
 		result[rstart] = sum.ToInt()
 		rstart--
 		carry = sum.ShiftR(32)
@@ -850,7 +850,7 @@ func (m *MutableBigInteger) add(addend *MutableBigInteger) {
 
 	for y > 0 {
 		y--
-		sum = (addend.value[y+addend.offset].ToLong() & LONG_MASK) + carry
+		sum = (addend.value[y+addend.offset].ToLong() & p_LONG_MASK) + carry
 		result[rstart] = sum.ToInt()
 		rstart--
 		carry = sum.ShiftR(32)
@@ -874,7 +874,7 @@ func (m *MutableBigInteger) add(addend *MutableBigInteger) {
 	m.offset = types.Int(len(result)) - resultLen
 }
 
-func (m *MutableBigInteger) subtract(b *MutableBigInteger) types.Int {
+func (m *mutableBigInteger) subtract(b *mutableBigInteger) types.Int {
 	a := m
 	result := m.value
 	sign := a.compare(b)
@@ -901,15 +901,15 @@ func (m *MutableBigInteger) subtract(b *MutableBigInteger) types.Int {
 	for y > 0 {
 		x--
 		y--
-		diff = (a.value[x+a.offset].ToLong() & LONG_MASK) -
-			(b.value[y+b.offset].ToLong() & LONG_MASK) - (-(diff >> 32)).ToInt().ToLong()
+		diff = (a.value[x+a.offset].ToLong() & p_LONG_MASK) -
+			(b.value[y+b.offset].ToLong() & p_LONG_MASK) - (-(diff >> 32)).ToInt().ToLong()
 		result[rstart] = diff.ToInt()
 		rstart--
 	}
 
 	for x > 0 {
 		x--
-		diff = (a.value[x+a.offset].ToLong() & LONG_MASK) - (-(diff >> 32)).ToInt().ToLong()
+		diff = (a.value[x+a.offset].ToLong() & p_LONG_MASK) - (-(diff >> 32)).ToInt().ToLong()
 		result[rstart] = diff.ToInt()
 		rstart--
 	}
@@ -921,8 +921,8 @@ func (m *MutableBigInteger) subtract(b *MutableBigInteger) types.Int {
 	return sign
 }
 
-func (m *MutableBigInteger) addLower(addend *MutableBigInteger, n types.Int) {
-	a := NewMutableBigIntegerObject(addend)
+func (m *mutableBigInteger) addLower(addend *mutableBigInteger, n types.Int) {
+	a := newMutableBigIntegerObject(addend)
 	if a.offset+a.intLen >= n {
 		a.offset = a.offset + a.intLen - n
 		a.intLen = n
@@ -931,7 +931,7 @@ func (m *MutableBigInteger) addLower(addend *MutableBigInteger, n types.Int) {
 	m.add(a)
 }
 
-func (m *MutableBigInteger) addShifted(addend *MutableBigInteger, n types.Int) {
+func (m *mutableBigInteger) addShifted(addend *mutableBigInteger, n types.Int) {
 	if addend.IsZero() {
 		return
 	}
@@ -965,8 +965,8 @@ func (m *MutableBigInteger) addShifted(addend *MutableBigInteger, n types.Int) {
 		} else {
 			bval = 0
 		}
-		sum = (m.value[x+m.offset].ToLong() & LONG_MASK) +
-			(bval.ToLong() & LONG_MASK) + carry
+		sum = (m.value[x+m.offset].ToLong() & p_LONG_MASK) +
+			(bval.ToLong() & p_LONG_MASK) + carry
 		result[rstart] = sum.ToInt()
 		rstart--
 		carry = sum.ShiftR(32)
@@ -977,7 +977,7 @@ func (m *MutableBigInteger) addShifted(addend *MutableBigInteger, n types.Int) {
 		if carry == 0 && tool.IntEqual(result, m.value) && rstart == (x+m.offset) {
 			return
 		}
-		sum = (m.value[x+m.offset].ToLong() & LONG_MASK) + carry
+		sum = (m.value[x+m.offset].ToLong() & p_LONG_MASK) + carry
 		result[rstart] = sum.ToInt()
 		rstart--
 		carry = sum.ShiftR(32)
@@ -991,7 +991,7 @@ func (m *MutableBigInteger) addShifted(addend *MutableBigInteger, n types.Int) {
 		} else {
 			bval = 0
 		}
-		sum = (bval.ToLong() & LONG_MASK) + carry
+		sum = (bval.ToLong() & p_LONG_MASK) + carry
 		result[rstart] = sum.ToInt()
 		rstart--
 		carry = sum.ShiftR(32)
@@ -1016,11 +1016,11 @@ func (m *MutableBigInteger) addShifted(addend *MutableBigInteger, n types.Int) {
 
 }
 
-func (m *MutableBigInteger) divideOneWord(divisor types.Int, quotient *MutableBigInteger) types.Int {
-	divisorLong := divisor.ToLong() & LONG_MASK
+func (m *mutableBigInteger) divideOneWord(divisor types.Int, quotient *mutableBigInteger) types.Int {
+	divisorLong := divisor.ToLong() & p_LONG_MASK
 
 	if m.intLen == 1 {
-		dividendValue := m.value[m.offset].ToLong() & LONG_MASK
+		dividendValue := m.value[m.offset].ToLong() & p_LONG_MASK
 		q := (dividendValue / divisorLong).ToInt()
 		r := (dividendValue - q.ToLong()*divisorLong).ToInt()
 		quotient.value[0] = q
@@ -1042,29 +1042,29 @@ func (m *MutableBigInteger) divideOneWord(divisor types.Int, quotient *MutableBi
 	shift := NumberOfLeadingZeros(divisor)
 
 	rem := m.value[m.offset]
-	remLong := rem.ToLong() & LONG_MASK
+	remLong := rem.ToLong() & p_LONG_MASK
 	if remLong < divisorLong {
 		quotient.value[0] = 0
 	} else {
 		quotient.value[0] = (remLong / divisorLong).ToInt()
 		rem = (remLong - (quotient.value[0].ToLong() * divisorLong)).ToInt()
-		remLong = rem.ToLong() & LONG_MASK
+		remLong = rem.ToLong() & p_LONG_MASK
 	}
 	xlen := m.intLen
 	for xlen-1 > 0 {
 		xlen--
-		dividendEstimate := (remLong << 32) | (m.value[m.offset+m.intLen-xlen].ToLong() & LONG_MASK)
+		dividendEstimate := (remLong << 32) | (m.value[m.offset+m.intLen-xlen].ToLong() & p_LONG_MASK)
 		var q types.Int
 		if dividendEstimate >= 0 {
 			q = (dividendEstimate / divisorLong).ToInt()
 			rem = (dividendEstimate - q.ToLong()*divisorLong).ToInt()
 		} else {
 			tmp := divWord(dividendEstimate, divisor)
-			q = (tmp & LONG_MASK).ToInt()
+			q = (tmp & p_LONG_MASK).ToInt()
 			rem = tmp.ShiftR(32).ToInt()
 		}
 		quotient.value[m.intLen-xlen] = q
-		remLong = rem.ToLong() & LONG_MASK
+		remLong = rem.ToLong() & p_LONG_MASK
 	}
 
 	quotient.normalize()
@@ -1080,12 +1080,12 @@ func unsignedLongCompare(one types.Long, two types.Long) bool {
 }
 
 func divWord(n types.Long, d types.Int) types.Long {
-	dLong := d.ToLong() & LONG_MASK
+	dLong := d.ToLong() & p_LONG_MASK
 	var r, q types.Long
 	if dLong == 1 {
 		q = n.ToInt().ToLong()
 		r = 0
-		return (r << 32) | (q & LONG_MASK)
+		return (r << 32) | (q & p_LONG_MASK)
 	}
 
 	q = n.ShiftR(1) / (dLong.ShiftR(1))
@@ -1101,7 +1101,7 @@ func divWord(n types.Long, d types.Int) types.Long {
 		q++
 	}
 
-	return (r << 32) | (q & LONG_MASK)
+	return (r << 32) | (q & p_LONG_MASK)
 }
 
 func copyAndShift(src []types.Int, srcFrom types.Int, srcLen types.Int, dst []types.Int, dstFrom types.Int, shift types.Int) {
@@ -1111,41 +1111,41 @@ func copyAndShift(src []types.Int, srcFrom types.Int, srcLen types.Int, dst []ty
 		b := c
 		srcFrom++
 		c = src[srcFrom]
-		dst[dstFrom] = (b << shift) | c.ShiftR(n2)
+		dst[dstFrom+i] = (b << shift) | c.ShiftR(n2)
 	}
 	dst[dstFrom+srcLen-1] = c << shift
 }
 
-func NewMutableBigIntegerDefault() *MutableBigInteger {
-	return &MutableBigInteger{
+func newMutableBigIntegerDefault() *mutableBigInteger {
+	return &mutableBigInteger{
 		value:  []types.Int{0},
 		intLen: 0,
 	}
 }
 
-func NewMutableBigInteger(val types.Int) *MutableBigInteger {
-	return &MutableBigInteger{
+func newMutableBigInteger(val types.Int) *mutableBigInteger {
+	return &mutableBigInteger{
 		value:  []types.Int{val},
 		intLen: 1,
 	}
 }
 
-func NewMutableBigIntegerObject(val *MutableBigInteger) *MutableBigInteger {
-	return &MutableBigInteger{
+func newMutableBigIntegerObject(val *mutableBigInteger) *mutableBigInteger {
+	return &mutableBigInteger{
 		intLen: val.intLen,
 		value:  tool.CopyRange(val.value, val.offset, val.offset+val.intLen),
 	}
 }
 
-func NewMutableBigIntegerByBigInteger(b *BigInteger) *MutableBigInteger {
-	return &MutableBigInteger{
-		intLen: types.Int(len(b.Mag)),
-		value:  tool.Copy(b.Mag, types.Int(len(b.Mag))),
+func newMutableBigIntegerByBigInteger(b *BigInteger) *mutableBigInteger {
+	return &mutableBigInteger{
+		intLen: types.Int(len(b.mag)),
+		value:  tool.Copy(b.mag, types.Int(len(b.mag))),
 	}
 }
 
-func NewMutableBigIntegerArray(val []types.Int) *MutableBigInteger {
-	return &MutableBigInteger{
+func newMutableBigIntegerArray(val []types.Int) *mutableBigInteger {
+	return &mutableBigInteger{
 		value:  val,
 		intLen: types.Int(len(val)),
 	}
