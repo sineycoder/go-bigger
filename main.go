@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/SineyCoder/go_bigger/big_integer"
+	"github.com/sineycoder/go-bigger/big_integer"
 )
 
 /**
