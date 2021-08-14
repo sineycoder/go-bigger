@@ -431,7 +431,7 @@ func add(x, y []types.Int) []types.Int {
 	result := make([]types.Int, xIndex)
 	var sum types.Long
 	if yIndex == 1 {
-		sum = types.Long(x[xIndex-1]) + types.Long(y[0])
+		sum = (x[xIndex-1].ToLong() & p_LONG_MASK) + (y[0].ToLong() & p_LONG_MASK)
 		xIndex--
 		result[xIndex] = sum.ToInt()
 	} else {
@@ -439,8 +439,8 @@ func add(x, y []types.Int) []types.Int {
 		for yIndex > 0 {
 			xIndex--
 			yIndex--
-			sum = (types.Long(x[xIndex]) & p_LONG_MASK) +
-				(types.Long(y[yIndex]) & p_LONG_MASK) + (sum.ShiftR(32)) // make sure positive
+			sum = (x[xIndex].ToLong() & p_LONG_MASK) +
+				(y[yIndex].ToLong() & p_LONG_MASK) + (sum.ShiftR(32)) // make sure positive
 			result[xIndex] = sum.ToInt()
 		}
 	}
@@ -491,7 +491,7 @@ func (b *BigInteger) pow(exponent types.Int) *BigInteger {
 	partToSquare := b.Abs()
 
 	powersOfTwo := partToSquare.getLowestSetBit()
-	bitsToShiftLong := types.Long(powersOfTwo * exponent)
+	bitsToShiftLong := (powersOfTwo * exponent).ToLong()
 	if bitsToShiftLong > p_LONG_MASK {
 		panic(errors.New("overflow"))
 	}
@@ -520,7 +520,7 @@ func (b *BigInteger) pow(exponent types.Int) *BigInteger {
 		}
 	}
 
-	scaleFactor := types.Long(remainingBits * exponent)
+	scaleFactor := (remainingBits * exponent).ToLong()
 
 	if len(partToSquare.mag) == 1 && scaleFactor <= 62 {
 		var newSign types.Int
@@ -531,7 +531,7 @@ func (b *BigInteger) pow(exponent types.Int) *BigInteger {
 		}
 
 		result := types.Long(1)
-		baseToPow2 := types.Long(partToSquare.mag[0]) & p_LONG_MASK
+		baseToPow2 := partToSquare.mag[0].ToLong() & p_LONG_MASK
 
 		workingExponent := exponent
 
@@ -547,16 +547,16 @@ func (b *BigInteger) pow(exponent types.Int) *BigInteger {
 		}
 
 		if powersOfTwo > 0 {
-			if types.Long(bitsToShift)+scaleFactor <= 62 {
+			if bitsToShift.ToLong()+scaleFactor <= 62 {
 				return ValueOf((result << bitsToShiftLong) * newSign.ToLong())
 			} else {
-				return ValueOf(result * types.Long(newSign)).shiftLeft(bitsToShift)
+				return ValueOf(result * newSign.ToLong()).shiftLeft(bitsToShift)
 			}
 		} else {
-			return ValueOf(result * types.Long(newSign))
+			return ValueOf(result * newSign.ToLong())
 		}
 	} else {
-		if types.Int(types.Long(b.BitLength())*types.Long(exponent)/types.Long(32)) > MAX_INT32/32+1 {
+		if (b.BitLength().ToLong() * exponent.ToLong() / types.Long(32)).ToInt() > MAX_INT32/32+1 {
 			panic(errors.New("overflow"))
 		}
 
@@ -722,7 +722,7 @@ func (b *BigInteger) squareRec(isRecursion bool) *BigInteger {
 			return b.squareKaratsuba()
 		} else {
 			if !isRecursion {
-				if types.Long(bitLength(b.mag, types.Int(len(b.mag)))) > types.Long(16)*(MAX_INT32/32+1).ToLong() {
+				if bitLength(b.mag, types.Int(len(b.mag))).ToLong() > types.Long(16)*(MAX_INT32/32+1).ToLong() {
 					panic(errors.New("overflow"))
 				}
 			}
@@ -873,7 +873,7 @@ func (b *BigInteger) exactDivideBy3() *BigInteger {
 	var x, w, q, borrow types.Long
 	borrow = 0
 	for i := length - 1; i >= 0; i-- {
-		x = types.Long(b.mag[i]) & p_LONG_MASK
+		x = b.mag[i].ToLong() & p_LONG_MASK
 		w = x - borrow
 		if borrow > x {
 			borrow = 1
@@ -932,7 +932,7 @@ func (b *BigInteger) multiplyRec(val *BigInteger, isRecursion bool) *BigInteger 
 			return multiplyKaratsuba(b, val)
 		} else {
 			if !isRecursion {
-				if types.Long(bitLength(b.mag, types.Int(len(b.mag)))+bitLength(val.mag, types.Int(len(val.mag)))) > types.Long(32)*(MAX_INT32/32+1).ToLong() {
+				if (bitLength(b.mag, types.Int(len(b.mag))) + bitLength(val.mag, types.Int(len(val.mag)))).ToLong() > types.Long(32)*(MAX_INT32/32+1).ToLong() {
 					panic("overflow")
 				}
 			}
@@ -1402,7 +1402,7 @@ func primitiveLeftShift(a []types.Int, length types.Int, n types.Int) {
 
 func addOne(a []types.Int, offset types.Int, mlen types.Int, carry types.Int) types.Int {
 	offset = types.Int(len(a)) - 1 - mlen - offset
-	t := (types.Long(a[offset]) & p_LONG_MASK) + (types.Long(carry) & p_LONG_MASK)
+	t := (a[offset].ToLong() & p_LONG_MASK) + (carry.ToLong() & p_LONG_MASK)
 
 	a[offset] = t.ToInt()
 	if t.ShiftR(32) == 0 {
@@ -1429,13 +1429,13 @@ func mulAdd(out []types.Int, in []types.Int, offset types.Int, length types.Int,
 }
 
 func implMulAdd(out []types.Int, in []types.Int, offset types.Int, length types.Int, k types.Int) types.Int {
-	kLong := types.Long(k) & p_LONG_MASK
+	kLong := k.ToLong() & p_LONG_MASK
 	carry := types.Long(0)
 
 	offset = types.Int(len(out)) - offset - 1
 	for j := length - 1; j >= 0; j-- {
-		product := (types.Long(in[j])&p_LONG_MASK)*kLong +
-			(types.Long(out[offset]) & p_LONG_MASK) + carry
+		product := (in[j].ToLong()&p_LONG_MASK)*kLong +
+			(out[offset].ToLong() & p_LONG_MASK) + carry
 		out[offset] = product.ToInt()
 		offset--
 		carry = product.ShiftR(32)

@@ -597,7 +597,7 @@ func (m *mutableBigInteger) BitLength() types.Long {
 	if m.intLen == 0 {
 		return 0
 	}
-	return types.Long(m.intLen)*32 - types.Long(NumberOfLeadingZeros(m.value[m.offset]))
+	return m.intLen.ToLong()*32 - NumberOfLeadingZeros(m.value[m.offset]).ToLong()
 }
 
 func (m *mutableBigInteger) safeLeftShift(n types.Int) {
@@ -1144,7 +1144,7 @@ func (m *mutableBigInteger) copyValue(src *mutableBigInteger) {
 	m.offset = 0
 }
 
-func unsignedLongCompare(one types.Long, two types.Long) bool {
+func unsignedLongCompare(one, two types.Long) bool {
 	return (one + MIN_INT64) > (two + MIN_INT64)
 }
 
