@@ -1075,6 +1075,75 @@ func (m *mutableBigInteger) divideOneWord(divisor types.Int, quotient *mutableBi
 	}
 }
 
+func (m *mutableBigInteger) sqrt() *mutableBigInteger {
+	if m.IsZero() {
+		return newMutableBigInteger(0)
+	} else if len(m.value) == 1 && (m.value[0].ToLong()&p_LONG_MASK) < 4 {
+		return mutable_one
+	}
+
+	if m.BitLength() <= 63 {
+		v := newBigInteger(m.value, 1).LongValueExact()
+		xk := types.Long(math.Floor(math.Sqrt(float64(v))))
+
+		for {
+			xk1 := (xk + v/xk) / 2
+			if xk1 >= xk {
+				return newMutableBigIntegerArray([]types.Int{
+					types.Int(xk.ShiftR(32)),
+					types.Int(xk & p_LONG_MASK),
+				})
+			}
+			xk = xk1
+		}
+	} else {
+		bitLenth := m.BitLength().ToInt()
+		if bitLenth.ToLong() != m.BitLength() {
+			panic("bitLength() integer overflow")
+		}
+
+		shift := bitLenth - 63
+		if shift%2 == 1 {
+			shift++
+		}
+
+		xk := newMutableBigIntegerObject(m)
+		xk.rightShift(shift)
+		xk.normalize()
+
+		d := newBigInteger(xk.value, 1).DoubleValue()
+		bi := ValueOf(types.Long(math.Ceil(math.Sqrt(float64(d)))))
+		xk = newMutableBigIntegerArray(bi.mag)
+
+		xk.leftShift(shift / 2)
+
+		xk1 := newMutableBigIntegerDefault()
+		for {
+			m.divideRemainder(xk, xk1, false)
+			xk1.add(xk)
+			xk1.rightShift(1)
+
+			if xk1.compare(xk) >= 0 {
+				return xk
+			}
+
+			xk.copyValue(xk1)
+			xk1.reset()
+		}
+
+	}
+}
+
+func (m *mutableBigInteger) copyValue(src *mutableBigInteger) {
+	length := src.intLen
+	if types.Int(len(m.value)) < length {
+		m.value = make([]types.Int, length)
+	}
+	Arraycopy(src.value, src.offset, m.value, 0, length)
+	m.intLen = length
+	m.offset = 0
+}
+
 func unsignedLongCompare(one types.Long, two types.Long) bool {
 	return (one + MIN_INT64) > (two + MIN_INT64)
 }

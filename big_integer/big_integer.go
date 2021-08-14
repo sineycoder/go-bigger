@@ -226,7 +226,8 @@ func Arraycopy(src []types.Int, srcPos types.Int, dest []types.Int, destPos, len
 	}
 }
 
-func (b *BigInteger) bitLength() types.Int {
+// BitLength Returns the number of bits in the minimal two's-complement representation of this BigInteger, excluding a sign bit.
+func (b *BigInteger) BitLength() types.Int {
 	n := b.bitLengthPlusOne - 1
 	if n == -1 {
 		var m []types.Int
@@ -314,7 +315,7 @@ func toString(u *BigInteger, buf *bytes.Buffer, radix types.Int, digits types.In
 	}
 
 	var b, n types.Int
-	b = u.bitLength()
+	b = u.BitLength()
 
 	// Calculate a value for n in the equation radix^(2^n) = u
 	n = types.Int(math.Round(math.Log(float64(types.Double(b)*p_LOG_TWO))/float64(p_LOG_TWO) - 1.0))
@@ -466,7 +467,7 @@ func add(x, y []types.Int) []types.Int {
 	return result
 }
 
-func (b *BigInteger) abs() *BigInteger {
+func (b *BigInteger) Abs() *BigInteger {
 	if b.signum >= 0 {
 		return b
 	} else {
@@ -487,7 +488,7 @@ func (b *BigInteger) pow(exponent types.Int) *BigInteger {
 		}
 	}
 
-	partToSquare := b.abs()
+	partToSquare := b.Abs()
 
 	powersOfTwo := partToSquare.getLowestSetBit()
 	bitsToShiftLong := types.Long(powersOfTwo * exponent)
@@ -500,7 +501,7 @@ func (b *BigInteger) pow(exponent types.Int) *BigInteger {
 
 	if powersOfTwo > 0 {
 		partToSquare = partToSquare.shiftRight(powersOfTwo)
-		remainingBits = partToSquare.bitLength()
+		remainingBits = partToSquare.BitLength()
 		if remainingBits == 1 {
 			if b.signum < 0 && (exponent&1) == 1 {
 				return NEGATIVE_ONE.shiftLeft(bitsToShift)
@@ -509,7 +510,7 @@ func (b *BigInteger) pow(exponent types.Int) *BigInteger {
 			}
 		}
 	} else {
-		remainingBits = partToSquare.bitLength()
+		remainingBits = partToSquare.BitLength()
 		if remainingBits == 1 {
 			if b.signum < 0 && (exponent&1) == 1 {
 				return NEGATIVE_ONE
@@ -555,7 +556,7 @@ func (b *BigInteger) pow(exponent types.Int) *BigInteger {
 			return ValueOf(result * types.Long(newSign))
 		}
 	} else {
-		if types.Int(types.Long(b.bitLength())*types.Long(exponent)/types.Long(32)) > MAX_INT32/32+1 {
+		if types.Int(types.Long(b.BitLength())*types.Long(exponent)/types.Long(32)) > MAX_INT32/32+1 {
 			panic(errors.New("overflow"))
 		}
 
@@ -777,7 +778,7 @@ func (b *BigInteger) squareKaratsuba() *BigInteger {
 func (b *BigInteger) getLower(n types.Int) *BigInteger {
 	length := types.Int(len(b.mag))
 	if length <= n {
-		return b.abs()
+		return b.Abs()
 	}
 
 	lowerInts := make([]types.Int, n)
@@ -827,7 +828,7 @@ func (b *BigInteger) getToomSlice(lowerSize types.Int, upperSize types.Int, slic
 	}
 
 	if start == 0 && sliceSize >= length {
-		return b.abs()
+		return b.Abs()
 	}
 
 	intSlice := make([]types.Int, sliceSize)
@@ -950,7 +951,7 @@ func (b *BigInteger) smallToString(radix types.Int) string {
 	maxNumDigitGroups := (4*len(b.mag) + 6) / 7
 	digitGroup := make([]string, maxNumDigitGroups)
 
-	tmp := b.abs()
+	tmp := b.Abs()
 	numGroups := 0
 	for tmp.signum != 0 {
 		d := longRadix[radix]
@@ -983,6 +984,7 @@ func (b *BigInteger) smallToString(radix types.Int) string {
 	return buf.String()
 }
 
+// LongValue if this BigInteger is too big to fit in a long, only the low-order 64 bits are returned.
 func (b *BigInteger) LongValue() types.Long {
 	result := types.Long(0)
 	for i := types.Int(1); i >= 0; i-- {
@@ -1075,6 +1077,109 @@ func (b *BigInteger) divideKnuth(val *BigInteger) *BigInteger {
 
 func (b *BigInteger) divideBurnikelZiegler(val *BigInteger) *BigInteger {
 	return b.divideAndRemainderBurnikelZiegler(val)[0]
+}
+
+func (b *BigInteger) Sqrt() *BigInteger {
+	if b.signum < 0 {
+		panic(errors.New("negative BigIntager"))
+	}
+
+	return newMutableBigIntegerArray(b.mag).sqrt().ToBigIntegerDefault()
+}
+
+// LongValueExact this BigInteger converted to a long. different from LongValue, this func will throw panic error
+func (b *BigInteger) LongValueExact() types.Long {
+	if len(b.mag) <= 2 && b.BitLength() <= 63 {
+		return b.LongValue()
+	} else {
+		panic(errors.New("BigInteger out of long range"))
+	}
+}
+
+func (b *BigInteger) DoubleValue() types.Double {
+	if b.signum == 0 {
+		return 0.0
+	}
+
+	exponent := ((types.Int(len(b.mag)) - 1) << 5) + bigLengthForInt(b.mag[0]) - 1
+
+	if exponent < 63 {
+		return b.LongValue().ToDouble()
+	} else if exponent > 1023 {
+		if b.signum > 0 {
+			return types.POSITIVE_INFINITY
+		} else {
+			return types.NEGATIVE_INFINITY
+		}
+	}
+
+	shift := exponent - 53
+	var twiceSignifFloor types.Long
+	var nBits, nBits2, highBits, lowBits types.Int
+
+	nBits = shift & 0x1f
+	nBits2 = 32 - nBits
+
+	if nBits == 0 {
+		highBits = b.mag[0]
+		lowBits = b.mag[1]
+	} else {
+		highBits = b.mag[0].ShiftR(nBits)
+		lowBits = (b.mag[0] << nBits2) | b.mag[1].ShiftR(nBits)
+		if highBits == 0 {
+			highBits = lowBits
+			lowBits = (b.mag[1] << nBits2) | b.mag[2].ShiftR(nBits)
+		}
+	}
+
+	twiceSignifFloor = ((highBits.ToLong() & p_LONG_MASK) << 32) | (lowBits.ToLong() & p_LONG_MASK)
+
+	signifFloor := twiceSignifFloor >> 1
+	signifFloor &= 0x000FFFFFFFFFFFFF // remove the implied bit
+
+	increment := (twiceSignifFloor&1) != 0 && ((signifFloor&1) != 0 || b.Abs().getLowestSetBit() < shift)
+	signifRounded := types.Long(0)
+	if increment {
+		signifRounded = signifFloor + 1
+	} else {
+		signifRounded = signifFloor
+	}
+	bits := (exponent + 1023).ToLong() << 52
+
+	bits += signifRounded
+	bits |= b.signum.ToLong() & MIN_INT64
+	return types.DoubleFromBits(bits)
+}
+
+func (b *BigInteger) SqrtAndRemainder() []*BigInteger {
+	s := b.Sqrt()
+	r := b.Subtract(s.square())
+	if r.CompareTo(ZERO) < 0 {
+		panic(errors.New("remainder value < 0"))
+	}
+	return []*BigInteger{s, r}
+}
+
+func (b *BigInteger) CompareTo(val *BigInteger) types.Int {
+	if b.signum == val.signum {
+		switch b.signum {
+		case 1:
+			return b.compareMagnitute(val)
+		case -1:
+			return val.compareMagnitute(b)
+		default:
+			return 0
+		}
+	}
+	if b.signum > val.signum {
+		return 1
+	} else {
+		return -1
+	}
+}
+
+func bigLengthForInt(n types.Int) types.Int {
+	return 32 - NumberOfLeadingZeros(n)
 }
 
 func multiplyToomCook3(a *BigInteger, b *BigInteger) *BigInteger {
@@ -1254,7 +1359,7 @@ func implSquareToLen(x []types.Int, length types.Int, z []types.Int, zlen types.
 	i := types.Int(0)
 	j := types.Int(0)
 	for ; j < length; j++ {
-		piece := types.Long(x[j]) & p_LONG_MASK
+		piece := x[j].ToLong() & p_LONG_MASK
 		product := piece * piece
 		z[i] = (lastProductLowWord << 31) | types.Int(product.ShiftR(33))
 		i++
@@ -1342,7 +1447,7 @@ func implMulAddCheck(out []types.Int, in []types.Int, offset types.Int, length t
 	if length > types.Int(len(in)) {
 		panic(errors.New(fmt.Sprintf("input length is out of bound: %d > %d", length, len(in))))
 	}
-	if offset > 0 {
+	if offset < 0 {
 		panic(errors.New(fmt.Sprintf("input offset is invalid: %d", offset)))
 	}
 	if offset > types.Int(len(out)-1) {

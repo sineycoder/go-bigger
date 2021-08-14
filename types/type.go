@@ -1,5 +1,7 @@
 package types
 
+import "math"
+
 /**
  @author: nizhenxian
  @date: 2021/8/11 19:18:00
@@ -9,7 +11,17 @@ type Long int64
 type Float float32
 type Double float64
 
+const (
+	POSITIVE_INFINITY = Double(math.MaxFloat64)
+	NEGATIVE_INFINITY = -POSITIVE_INFINITY
+)
+
 // e.g. right shift, append 0 to high bit
+
+func DoubleFromBits(bits Long) Double {
+	return Double(math.Float64frombits(uint64(bits)))
+}
+
 func (i Int) ShiftR(val Int) Int {
 	return Int(uint32(i) >> val)
 }
@@ -24,4 +36,8 @@ func (l Long) ShiftR(val Int) Long {
 
 func (l Long) ToInt() Int {
 	return Int(l)
+}
+
+func (l Long) ToDouble() Double {
+	return Double(l)
 }
