@@ -63,7 +63,7 @@ func main() {
 	fmt.Println(res.String())
 }
 
-// result：-4492001258939659707102108169
+// result：-4600384974793271546583561
 ```
 
 ## 3.BigDecimal
