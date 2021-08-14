@@ -2,7 +2,7 @@ package tool
 
 import (
 	"errors"
-	"github.com/SineyCoder/go_big_integer/types"
+	"github.com/SineyCoder/go_bigger/types"
 	"math"
 )
 

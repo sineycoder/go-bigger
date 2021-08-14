@@ -2,7 +2,7 @@ package big_integer
 
 import (
 	"fmt"
-	"github.com/SineyCoder/go_big_integer/types"
+	"github.com/SineyCoder/go_bigger/types"
 	"math/big"
 	"testing"
 )
