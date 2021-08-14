@@ -2,8 +2,8 @@ package big_integer
 
 import (
 	"errors"
-	"github.com/SineyCoder/go_big_integer/tool"
-	"github.com/SineyCoder/go_big_integer/types"
+	"github.com/sineycoder/go-bigger/tool"
+	"github.com/sineycoder/go-bigger/types"
 	"math"
 )
 
