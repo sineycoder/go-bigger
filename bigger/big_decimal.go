@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/sineycoder/go-bigger/tool"
 	"github.com/sineycoder/go-bigger/types"
+	"math"
 	"sync"
 )
 
@@ -17,10 +18,11 @@ type RoundingMode types.Int
 var mu sync.Mutex
 
 type BigDecimal struct {
-	intVal     *BigInteger
-	scale      types.Int
-	precision  types.Int
-	intCompact types.Long
+	intVal      *BigInteger
+	scale       types.Int
+	precision   types.Int
+	intCompact  types.Long
+	stringCache string
 }
 
 type mathContext struct {
@@ -212,6 +214,7 @@ func NewBigDecimalString(val string) *BigDecimal {
 	} else {
 		coeff := make([]uint8, length)
 		for ; length > 0; offset++ {
+			c = val[offset]
 			if c >= '0' && c <= '9' {
 				if c == '0' || tool.Digit(c, 10) == 0 {
 					if prec == 0 {
@@ -232,6 +235,7 @@ func NewBigDecimalString(val string) *BigDecimal {
 				if dot {
 					scl++
 				}
+				length--
 				continue
 			}
 			if c == '.' {
@@ -239,6 +243,7 @@ func NewBigDecimalString(val string) *BigDecimal {
 					panic(errors.New("Character array contains more than one point"))
 				}
 				dot = true
+				length--
 				continue
 			}
 			if c != 'e' && c != 'E' {
@@ -345,7 +350,7 @@ func needIncrementMutableBigInteger2(mdivisor *mutableBigInteger, roundingMode R
 		cmpFracHalf := mr.compareHalf(mdivisor)
 		return commonNeedIncrement(roundingMode, qsign, cmpFracHalf, mq.isOdd())
 	}
-	panic(errors.New("By zero"))
+	panic(errors.New("illegal param"))
 }
 
 func bigTenToThe(n types.Int) *BigInteger {
@@ -471,7 +476,7 @@ func divideAndRound(ldividend, ldivisor types.Long, mode RoundingMode) types.Lon
 
 func needIncrement(ldivisor types.Long, roundingMode RoundingMode, qsign types.Int, q types.Long, r types.Long) bool {
 	if r == 0 {
-		panic(errors.New("by zero"))
+		panic(errors.New("illegal param"))
 	}
 	var cmpFracHalf types.Int
 	if r <= MIN_INT64/2 || r > MAX_INT64/2 {
@@ -492,7 +497,7 @@ func needIncrementMutableBigInteger(ldivisor types.Long, roundingMode RoundingMo
 		}
 		return commonNeedIncrement(roundingMode, qsign, cmpFracHalf, mq.isOdd())
 	}
-	panic(errors.New("By zero"))
+	panic(errors.New("illegal param"))
 }
 
 func commonNeedIncrement(roundingMode RoundingMode, qsign, cmpFracHalf types.Int, addQuot bool) bool {
@@ -565,7 +570,7 @@ func checkScaleNonZero(val types.Long) types.Int {
 
 func adjustScale(scl types.Int, exp types.Long) types.Int {
 	ads := scl.ToLong() - exp
-	if ads > MAX_INT32.ToLong() || ads < MAX_INT32.ToLong() {
+	if ads > MAX_INT32.ToLong() || ads < MIN_INT32.ToLong() {
 		panic(errors.New("Scale out of range"))
 	}
 	scl = ads.ToInt()
@@ -625,4 +630,118 @@ func BigDecimalValueOf(val types.Long) *BigDecimal {
 		return newBigDecimalByBigInteger(nil, val, 0, 0)
 	}
 	return newBigDecimalByBigInteger(BigIntegerValueOf(MIN_INT64), val, 0, 0)
+}
+
+func (b *BigDecimal) String() string {
+	sc := b.stringCache
+	if sc == "" {
+		b.stringCache = b.layoutChars(true)
+		sc = b.stringCache
+	}
+	return sc
+}
+
+func (b *BigDecimal) layoutChars(sci bool) string {
+	if b.scale == 0 {
+		if b.intCompact != MIN_INT64 {
+			str := b.intCompact.String()
+			return str
+		} else {
+			str := b.intVal.String()
+			return str
+		}
+	}
+	if b.scale == 2 && b.intCompact >= 0 && b.intCompact < MAX_INT32.ToLong() {
+		lowInt := b.intCompact.ToInt() % 100
+		highInt := b.intCompact.ToInt() / 100
+		str := highInt.String() + "." + string(DIGIT_TENS[lowInt]) + string(DIGIT_ONES[lowInt])
+		return str
+	}
+
+	sbHelper := NewStringBuilderHelper()
+	var coeff []rune
+	var offset types.Int
+	if b.intCompact != MIN_INT64 {
+		offset = sbHelper.PutIntCompact(types.Long(math.Abs(float64(b.intCompact))))
+		coeff = sbHelper.GetCompactCharArray()
+	} else {
+		offset = 0
+		coeff = []rune(b.intVal.Abs().String())
+	}
+
+	buf := sbHelper.GetBuffer()
+	if b.signum() < 0 {
+		buf = append(buf, '-')
+	}
+	coeffLen := types.Int(len(coeff)) - offset
+	adjusted := -b.scale.ToLong() + (coeffLen - 1).ToLong()
+	if (b.scale >= 0) && (adjusted >= -6) {
+		pad := b.scale - coeffLen
+		if pad >= 0 {
+			buf = append(buf, '0')
+			buf = append(buf, '.')
+			for ; pad > 0; pad-- {
+				buf = append(buf, '0')
+			}
+			buf = append(buf, coeff[offset:offset+coeffLen]...)
+		} else {
+			buf = append(buf, coeff[offset:offset-pad]...)
+			buf = append(buf, '.')
+			buf = append(buf, coeff[-pad+offset:-pad+offset+b.scale]...)
+		}
+	} else {
+		if sci {
+			buf = append(buf, coeff[offset])
+			if coeffLen > 1 {
+				buf = append(buf, '.')
+				buf = append(buf, coeff[offset+1:offset+1+coeffLen-1]...)
+			}
+		} else {
+			sig := (adjusted % 3).ToInt()
+			if sig < 0 {
+				sig += 3
+			}
+			adjusted -= sig.ToLong()
+			sig++
+			if b.signum() == 0 {
+				switch sig {
+				case 1:
+					buf = append(buf, '0')
+				case 2:
+					buf = append(buf, []rune("0.00")...)
+					adjusted += 3
+				case 3:
+					buf = append(buf, []rune("0.0")...)
+					adjusted += 3
+				default:
+					panic(errors.New("Unexpected sig value"))
+				}
+			} else if sig >= coeffLen {
+				buf = append(buf, coeff[offset:offset+coeffLen]...)
+				for i := sig - coeffLen; i > 0; i-- {
+					buf = append(buf, '0')
+				}
+			} else {
+				buf = append(buf, coeff[offset:offset+sig]...)
+				buf = append(buf, '.')
+				buf = append(buf, coeff[offset+sig:offset+coeffLen]...)
+			}
+		}
+		if adjusted != 0 {
+			buf = append(buf, 'E')
+			if adjusted > 0 {
+				buf = append(buf, '+')
+			}
+			buf = append(buf, []rune(adjusted.String())...)
+		}
+	}
+	return string(buf)
+}
+
+func (b *BigDecimal) signum() types.Int {
+	if b.intCompact != MIN_INT64 {
+		return ((b.intCompact >> 63) | -b.intCompact.ShiftR(63)).ToInt()
+	} else {
+		return b.intVal.signum
+	}
 }

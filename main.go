@@ -10,7 +10,6 @@ import (
  @date: 2021/8/12 18:10:43
 **/
 func main() {
-	res := bigger.NewBigDecimalString("123123")
-	fmt.Println(res)
-
+	a := bigger.NewBigDecimalString("123123.12e10")
+	fmt.Println(a.String())
 }

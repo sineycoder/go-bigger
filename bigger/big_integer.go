@@ -1467,14 +1467,14 @@ func NewBigIntegerLong(val types.Long) *BigInteger {
 	return bigInteger
 }
 
-func NewBigIntegerString(val *string) *BigInteger {
+func NewBigIntegerString(val string) *BigInteger {
 	return NewBigIntegerStringRadix(val, 10)
 }
 
-func NewBigIntegerStringRadix(val *string, radix types.Int) *BigInteger {
+func NewBigIntegerStringRadix(val string, radix types.Int) *BigInteger {
 	b := &BigInteger{}
 	var cursor, numDigits types.Int
-	length := types.Int(len(*val))
+	length := types.Int(len(val))
 
 	if radix < 2 || radix > 36 {
 		panic(errors.New("Radix out of range"))
@@ -1484,8 +1484,8 @@ func NewBigIntegerStringRadix(val *string, radix types.Int) *BigInteger {
 	}
 
 	sign := 1
-	index1 := strings.LastIndex(*val, "-")
-	index2 := strings.LastIndex(*val, "+")
+	index1 := strings.LastIndex(val, "-")
+	index2 := strings.LastIndex(val, "+")
 	if index1 >= 0 {
 		if index1 != 0 || index2 >= 0 {
 			panic(errors.New("Illegal embedded sign character"))
@@ -1502,7 +1502,7 @@ func NewBigIntegerStringRadix(val *string, radix types.Int) *BigInteger {
 		panic(errors.New("Zero length BigInteger"))
 	}
 
-	for cursor < length && tool.Digit((*val)[cursor], uint8(radix)) == 0 {
+	for cursor < length && tool.Digit(val[cursor], uint8(radix)) == 0 {
 		cursor++
 	}
 
@@ -1526,7 +1526,7 @@ func NewBigIntegerStringRadix(val *string, radix types.Int) *BigInteger {
 	if firstGroupLen == 0 {
 		firstGroupLen = digitsPerInt[radix]
 	}
-	group := (*val)[cursor : cursor+firstGroupLen]
+	group := val[cursor : cursor+firstGroupLen]
 	cursor += firstGroupLen
 	res, _ := strconv.ParseInt(group, int(radix), 32)
 	magnitude[numWords-1] = types.Int(res)
@@ -1537,7 +1537,7 @@ func NewBigIntegerStringRadix(val *string, radix types.Int) *BigInteger {
 	superRadix := intRadix[radix]
 	var groupVal types.Int
 	for cursor < length {
-		group = (*val)[cursor : cursor+digitsPerInt[radix]]
+		group = val[cursor : cursor+digitsPerInt[radix]]
 		cursor += digitsPerInt[radix]
 		res, _ = strconv.ParseInt(group, int(radix), 32)
 		groupVal = types.Int(res)

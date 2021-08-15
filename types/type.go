@@ -1,6 +1,9 @@
 package types
 
-import "math"
+import (
+	"fmt"
+	"math"
+)
 
 /**
  @author: nizhenxian
@@ -30,6 +33,10 @@ func (i Int) ToLong() Long {
 	return Long(i)
 }
 
+func (i Int) String() string {
+	return fmt.Sprintf("%d", i)
+}
+
 func (l Long) ShiftR(val Int) Long {
 	return Long(uint64(l) >> val)
 }
@@ -40,4 +47,8 @@ func (l Long) ToInt() Int {
 
 func (l Long) ToDouble() Double {
 	return Double(l)
+}
+
+func (l Long) String() string {
+	return fmt.Sprintf("%d", l)
 }
