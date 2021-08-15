@@ -1,4 +1,4 @@
-package big_integer
+package bigger
 
 import (
 	"fmt"
@@ -13,8 +13,8 @@ import (
 **/
 
 func TestValueOf(t *testing.T) {
-	a := ValueOf(types.Long(534151451245))
-	b := ValueOf(types.Long(18979412))
+	a := BigIntegerValueOf(types.Long(534151451245))
+	b := BigIntegerValueOf(types.Long(18979412))
 	res := a.Add(b)
 	fmt.Printf("%+v", res)
 }
@@ -29,8 +29,8 @@ func TestArraycopy(t *testing.T) {
 }
 
 func BenchmarkValueOf(bb *testing.B) {
-	a := ValueOf(types.Long(97917234971231119))
-	b := ValueOf(types.Long(-9791723497123222))
+	a := BigIntegerValueOf(types.Long(97917234971231119))
+	b := BigIntegerValueOf(types.Long(-9791723497123222))
 	a.Subtract(b)
 }
 

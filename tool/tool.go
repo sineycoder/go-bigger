@@ -79,16 +79,16 @@ func IntEqual(a, b []types.Int) bool {
 	return true
 }
 
-func Digit(a uint8, b uint8) types.Int {
-	if b < 2 || b > 36 {
+func Digit(a uint8, radix uint8) types.Int {
+	if radix < 2 || radix > 36 {
 		return -1
 	}
 	if a >= 48 && a <= 57 {
-		if a-48 < b {
+		if a-48 < radix {
 			return types.Int(a - 48)
 		}
 	} else if a >= 65 && a <= 90 {
-		if a-55 < b {
+		if a-55 < radix {
 			return types.Int(a - 55)
 		}
 	}

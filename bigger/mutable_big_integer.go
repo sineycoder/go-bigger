@@ -1,4 +1,4 @@
-package big_integer
+package bigger
 
 import (
 	"errors"
@@ -29,6 +29,28 @@ type mutableBigInteger struct {
 
 func (m *mutableBigInteger) Divide(b *mutableBigInteger, quotient *mutableBigInteger) *mutableBigInteger {
 	return m.divideRemainder(b, quotient, true)
+}
+
+func (m *mutableBigInteger) divide(v types.Long, quotient *mutableBigInteger) types.Long {
+	if v == 0 {
+		panic(errors.New("BigInteger divide by zero"))
+	}
+	if m.intLen == 0 {
+		quotient.intLen = 0
+		quotient.offset = 0
+		return 0
+	}
+	if v < 0 {
+		v = -v
+	}
+	d := v.ShiftR(32).ToInt()
+	quotient.clear()
+	if d == 0 {
+		return m.divideOneWord(v.ToInt(), quotient).ToLong() & p_LONG_MASK
+	} else {
+		return m.divideLongMagnitude(v, quotient).toLong()
+	}
+	return 0
 }
 
 func (m *mutableBigInteger) divideRemainder(b *mutableBigInteger, quotient *mutableBigInteger, needRemainder bool) *mutableBigInteger {
@@ -1112,7 +1134,7 @@ func (m *mutableBigInteger) sqrt() *mutableBigInteger {
 		xk.normalize()
 
 		d := newBigInteger(xk.value, 1).DoubleValue()
-		bi := ValueOf(types.Long(math.Ceil(math.Sqrt(float64(d)))))
+		bi := BigIntegerValueOf(types.Long(math.Ceil(math.Sqrt(float64(d)))))
 		xk = newMutableBigIntegerArray(bi.mag)
 
 		xk.leftShift(shift / 2)
@@ -1142,6 +1164,205 @@ func (m *mutableBigInteger) copyValue(src *mutableBigInteger) {
 	Arraycopy(src.value, src.offset, m.value, 0, length)
 	m.intLen = length
 	m.offset = 0
+}
+
+func (m *mutableBigInteger) divideLongMagnitude(ldivisor types.Long, quotient *mutableBigInteger) *mutableBigInteger {
+	rem := newMutableBigIntegerArray(make([]types.Int, m.intLen+1))
+	Arraycopy(m.value, m.offset, rem.value, 1, m.intLen)
+	rem.intLen = m.intLen
+	rem.offset = 1
+	nlen := rem.intLen
+	limit := nlen - 2 + 1
+	if types.Int(len(quotient.value)) < limit {
+		quotient.value = make([]types.Int, limit)
+		quotient.offset = 0
+	}
+	quotient.intLen = limit
+	q := quotient.value
+
+	shift := NumberOfLeadingZerosForLong(ldivisor)
+	if shift > 0 {
+		ldivisor <<= shift
+		rem.leftShift(shift)
+	}
+
+	if rem.intLen == nlen {
+		rem.offset = 0
+		rem.value[0] = 0
+		rem.intLen++
+	}
+
+	dh := ldivisor.ShiftR(32).ToInt()
+	dhLong := dh.ToLong() & p_LONG_MASK
+	dl := (ldivisor & p_LONG_MASK).ToInt()
+
+	for j := types.Int(0); j < limit; j++ {
+		var qhat, qrem types.Int
+		skipCorrection := false
+		nh := rem.value[j+rem.offset]
+		nh2 := nh + MIN_INT32
+		nm := rem.value[j+1+rem.offset]
+
+		if nh == dh {
+			qhat = ^0
+			qrem = nh + nm
+			skipCorrection = qrem+MIN_INT32 < nh2
+		} else {
+			nChunk := (nh.ToLong() << 32) | (nm.ToLong() & p_LONG_MASK)
+			if nChunk >= 0 {
+				qhat = (nChunk / dhLong).ToInt()
+				qrem = (nChunk - (qhat.ToLong() * dhLong)).ToInt()
+			} else {
+				tmp := divWord(nChunk, dh)
+				qhat = (tmp & p_LONG_MASK).ToInt()
+				qrem = (tmp.ShiftR(32)).ToInt()
+			}
+		}
+
+		if qhat == 0 {
+			continue
+		}
+
+		if !skipCorrection {
+			nl := rem.value[j+2+rem.offset].ToLong() & p_LONG_MASK
+			rs := ((qrem.ToLong() & p_LONG_MASK) << 32) | nl
+			estProduct := (dl.ToLong() & p_LONG_MASK) * (qhat.ToLong() & p_LONG_MASK)
+
+			if unsignedLongCompare(estProduct, rs) {
+				qhat--
+				qrem = ((qrem.ToLong() & p_LONG_MASK) + dhLong).ToInt()
+				if (qrem.ToLong() & p_LONG_MASK) >= dhLong {
+					estProduct -= dl.ToLong() & p_LONG_MASK
+					rs = ((qrem.ToLong() & p_LONG_MASK) << 32) | nl
+					if unsignedLongCompare(estProduct, rs) {
+						qhat--
+					}
+				}
+			}
+		}
+
+		rem.value[j+rem.offset] = 0
+		borrow := m.mulsubLong(rem.value, dh, dl, qhat, j+rem.offset)
+
+		if borrow+MIN_INT32 > nh2 {
+			m.divaddLong(dh, dl, rem.value, j+1+rem.offset)
+			qhat--
+		}
+
+		q[j] = qhat
+	}
+	if shift > 0 {
+		rem.rightShift(shift)
+	}
+	quotient.normalize()
+	rem.normalize()
+	return rem
+}
+
+func (m *mutableBigInteger) mulsubLong(q []types.Int, dh types.Int, dl types.Int, x types.Int, offset types.Int) types.Int {
+	xLong := x.ToLong() & p_LONG_MASK
+	offset += 2
+	product := (dl.ToLong() & p_LONG_MASK) & xLong
+	difference := q[offset].ToLong() - product
+	q[offset] = difference.ToInt()
+	offset--
+	var carry = product.ShiftR(32)
+	if (difference & p_LONG_MASK) > ((^product.ToInt()).ToLong() & p_LONG_MASK) {
+		carry += 1
+	}
+	product = (dh.ToLong()&p_LONG_MASK)*xLong + carry
+	difference = q[offset].ToLong() - product
+	q[offset] = difference.ToInt()
+	offset--
+	carry = product.ShiftR(32)
+	if (difference & p_LONG_MASK) > ((^product.ToInt()).ToLong() & p_LONG_MASK) {
+		carry += 1
+	}
+	return carry.ToInt()
+}
+
+func (m *mutableBigInteger) divaddLong(dh, dl types.Int, result []types.Int, offset types.Int) types.Int {
+	var carry types.Long
+	sum := (dl.ToLong() & p_LONG_MASK) + (result[1+offset].ToLong() & p_LONG_MASK)
+	result[1+offset] = sum.ToInt()
+
+	sum = (dh.ToLong() & p_LONG_MASK) + (result[offset].ToLong() & p_LONG_MASK) + carry
+	result[offset] = sum.ToInt()
+	carry = sum.ShiftR(32)
+	return carry.ToInt()
+}
+
+func (m *mutableBigInteger) toLong() types.Long {
+	if m.intLen <= 2 {
+		if m.intLen == 0 {
+			return 0
+		}
+		d := m.value[m.offset].ToLong() & p_LONG_MASK
+		if m.intLen == 2 {
+			return (d << 32) | (m.value[m.offset+1].ToLong() & p_LONG_MASK)
+		} else {
+			return d
+		}
+	}
+	panic(errors.New("this MutableBigInteger exceed the range of long"))
+}
+
+func (m *mutableBigInteger) isOdd() bool {
+	if m.IsZero() {
+		return false
+	} else {
+		return (m.value[m.offset+m.intLen-1] & 1) == 1
+	}
+}
+
+func (m *mutableBigInteger) compareHalf(b *mutableBigInteger) types.Int {
+	blen := b.intLen
+	length := m.intLen
+	if length <= 0 {
+		if blen <= 0 {
+			return 0
+		} else {
+			return -1
+		}
+	}
+	if length > blen {
+		return 1
+	}
+	if length < blen-1 {
+		return -1
+	}
+	bval := b.value
+	var bstart, carry types.Int
+	if length != blen {
+		if bval[bstart] == 1 {
+			bstart++
+			carry = MIN_INT32
+		} else {
+			return -1
+		}
+	}
+	val := m.value
+	i, j := m.offset, bstart
+	for i < length+m.offset {
+		bv := bval[j]
+		j++
+		nb := (bv.ShiftR(1).ToLong() + carry.ToLong()) & p_LONG_MASK
+		v := val[i].ToLong() & p_LONG_MASK
+		i++
+		if v != nb {
+			if v < nb {
+				return -1
+			} else {
+				return 1
+			}
+		}
+		carry = (bv & 1) << 31
+	}
+	if carry == 0 {
+		return 0
+	} else {
+		return -1
+	}
 }
 
 func unsignedLongCompare(one, two types.Long) bool {

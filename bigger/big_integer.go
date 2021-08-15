@@ -1,4 +1,4 @@
-package big_integer
+package bigger
 
 import (
 	"bytes"
@@ -33,8 +33,10 @@ const (
 
 var (
 	ZERO                = newBigInteger([]types.Int{0}, 0)
-	ONE                 = ValueOf(1)
-	NEGATIVE_ONE        = ValueOf(-1)
+	ONE                 = BigIntegerValueOf(1)
+	TWO                 = BigIntegerValueOf(2)
+	TEN                 = BigIntegerValueOf(10)
+	NEGATIVE_ONE        = BigIntegerValueOf(-1)
 	p_LOG_TWO           = types.Double(math.Log(2.0))
 	p_LONG_MASK         = types.Long(0xffffffff)
 	posConst            = make([]*BigInteger, pMAX_CONSTANT+1)
@@ -64,24 +66,24 @@ var (
 		62, 39, 31, 27, 24, 22, 20, 19, 18, 18, 17, 17, 16, 16, 15, 15, 15, 14,
 		14, 14, 14, 13, 13, 13, 13, 13, 13, 12, 12, 12, 12, 12, 12, 12, 12}
 	longRadix = []*BigInteger{nil, nil,
-		ValueOf(0x4000000000000000), ValueOf(0x383d9170b85ff80b),
-		ValueOf(0x4000000000000000), ValueOf(0x6765c793fa10079d),
-		ValueOf(0x41c21cb8e1000000), ValueOf(0x3642798750226111),
-		ValueOf(0x1000000000000000), ValueOf(0x12bf307ae81ffd59),
-		ValueOf(0xde0b6b3a7640000), ValueOf(0x4d28cb56c33fa539),
-		ValueOf(0x1eca170c00000000), ValueOf(0x780c7372621bd74d),
-		ValueOf(0x1e39a5057d810000), ValueOf(0x5b27ac993df97701),
-		ValueOf(0x1000000000000000), ValueOf(0x27b95e997e21d9f1),
-		ValueOf(0x5da0e1e53c5c8000), ValueOf(0xb16a458ef403f19),
-		ValueOf(0x16bcc41e90000000), ValueOf(0x2d04b7fdd9c0ef49),
-		ValueOf(0x5658597bcaa24000), ValueOf(0x6feb266931a75b7),
-		ValueOf(0xc29e98000000000), ValueOf(0x14adf4b7320334b9),
-		ValueOf(0x226ed36478bfa000), ValueOf(0x383d9170b85ff80b),
-		ValueOf(0x5a3c23e39c000000), ValueOf(0x4e900abb53e6b71),
-		ValueOf(0x7600ec618141000), ValueOf(0xaee5720ee830681),
-		ValueOf(0x1000000000000000), ValueOf(0x172588ad4f5f0981),
-		ValueOf(0x211e44f7d02c1000), ValueOf(0x2ee56725f06e5c71),
-		ValueOf(0x41c21cb8e1000000)}
+		BigIntegerValueOf(0x4000000000000000), BigIntegerValueOf(0x383d9170b85ff80b),
+		BigIntegerValueOf(0x4000000000000000), BigIntegerValueOf(0x6765c793fa10079d),
+		BigIntegerValueOf(0x41c21cb8e1000000), BigIntegerValueOf(0x3642798750226111),
+		BigIntegerValueOf(0x1000000000000000), BigIntegerValueOf(0x12bf307ae81ffd59),
+		BigIntegerValueOf(0xde0b6b3a7640000), BigIntegerValueOf(0x4d28cb56c33fa539),
+		BigIntegerValueOf(0x1eca170c00000000), BigIntegerValueOf(0x780c7372621bd74d),
+		BigIntegerValueOf(0x1e39a5057d810000), BigIntegerValueOf(0x5b27ac993df97701),
+		BigIntegerValueOf(0x1000000000000000), BigIntegerValueOf(0x27b95e997e21d9f1),
+		BigIntegerValueOf(0x5da0e1e53c5c8000), BigIntegerValueOf(0xb16a458ef403f19),
+		BigIntegerValueOf(0x16bcc41e90000000), BigIntegerValueOf(0x2d04b7fdd9c0ef49),
+		BigIntegerValueOf(0x5658597bcaa24000), BigIntegerValueOf(0x6feb266931a75b7),
+		BigIntegerValueOf(0xc29e98000000000), BigIntegerValueOf(0x14adf4b7320334b9),
+		BigIntegerValueOf(0x226ed36478bfa000), BigIntegerValueOf(0x383d9170b85ff80b),
+		BigIntegerValueOf(0x5a3c23e39c000000), BigIntegerValueOf(0x4e900abb53e6b71),
+		BigIntegerValueOf(0x7600ec618141000), BigIntegerValueOf(0xaee5720ee830681),
+		BigIntegerValueOf(0x1000000000000000), BigIntegerValueOf(0x172588ad4f5f0981),
+		BigIntegerValueOf(0x211e44f7d02c1000), BigIntegerValueOf(0x2ee56725f06e5c71),
+		BigIntegerValueOf(0x41c21cb8e1000000)}
 )
 
 type BigInteger struct {
@@ -106,115 +108,10 @@ func init() {
 
 	for i := 2; i <= 32; i++ {
 		powerCache[i] = []*BigInteger{
-			ValueOf(types.Long(i)),
+			BigIntegerValueOf(types.Long(i)),
 		}
 		logCache[i] = types.Double(math.Log(float64(i)))
 	}
-}
-
-func NewBigIntegerLong(val types.Long) *BigInteger {
-	bigInteger := &BigInteger{}
-	if val < 0 {
-		val = -val
-		bigInteger.signum = -1 // set signum as -1, value is negative
-	} else {
-		bigInteger.signum = 1
-	}
-
-	highBit := (val >> 32).ToInt()
-	if highBit == 0 {
-		bigInteger.mag = []types.Int{val.ToInt()} // high 32 bits is all zero
-	} else {
-		bigInteger.mag = []types.Int{highBit, val.ToInt()}
-	}
-	return bigInteger
-}
-
-func NewBigIntegerString(val string) *BigInteger {
-	return NewBigIntegerStringRadix(val, 10)
-}
-
-func NewBigIntegerStringRadix(val string, radix types.Int) *BigInteger {
-
-	b := &BigInteger{}
-	var cursor, numDigits types.Int
-	length := types.Int(len(val))
-
-	if radix < 2 || radix > 36 {
-		panic(errors.New("Radix out of range"))
-	}
-	if length == 0 {
-		panic(errors.New("Zero length BigInteger"))
-	}
-
-	sign := 1
-	index1 := strings.LastIndex(val, "-")
-	index2 := strings.LastIndex(val, "+")
-	if index1 >= 0 {
-		if index1 != 0 || index2 >= 0 {
-			panic(errors.New("Illegal embedded sign character"))
-		}
-		sign = -1
-		cursor = 1
-	} else if index2 >= 0 {
-		if index2 != 0 {
-			panic(errors.New("Illegal embedded sign character"))
-		}
-		cursor = 1
-	}
-	if cursor == length {
-		panic(errors.New("Zero length BigInteger"))
-	}
-
-	for cursor < length && tool.Digit(val[cursor], uint8(radix)) == 0 {
-		cursor++
-	}
-
-	if cursor == length {
-		b.signum = 0
-		b.mag = ZERO.mag
-		return b
-	}
-
-	numDigits = length - cursor
-	b.signum = types.Int(sign)
-
-	numBits := ((numDigits * bitsPerDigit[radix]).ShiftR(10) + 1).ToLong()
-	if numBits+31 >= (types.Long(1) << 32) {
-		panic(errors.New("overflow"))
-	}
-	numWords := (numBits + 31).ToInt().ShiftR(5)
-	magnitude := make([]types.Int, numWords)
-
-	firstGroupLen := numDigits % digitsPerInt[radix]
-	if firstGroupLen == 0 {
-		firstGroupLen = digitsPerInt[radix]
-	}
-	group := val[cursor : cursor+firstGroupLen]
-	cursor += firstGroupLen
-	res, _ := strconv.ParseInt(group, int(radix), 32)
-	magnitude[numWords-1] = types.Int(res)
-	if magnitude[numWords-1] < 0 {
-		panic(errors.New("Illegal digit"))
-	}
-
-	superRadix := intRadix[radix]
-	var groupVal types.Int
-	for cursor < length {
-		group = val[cursor : cursor+digitsPerInt[radix]]
-		cursor += digitsPerInt[radix]
-		res, _ = strconv.ParseInt(group, int(radix), 32)
-		groupVal = types.Int(res)
-		if groupVal < 0 {
-			panic(errors.New("Illegal digit"))
-		}
-		destructiveMulAdd(magnitude, superRadix, groupVal)
-	}
-	b.mag = trustedStripLeadingZeroInts(magnitude)
-	if types.Int(len(b.mag)) >= MAX_MAG_LENGTH {
-		b.checkRange()
-	}
-	return b
 }
 
 func destructiveMulAdd(x []types.Int, y, z types.Int) {
@@ -236,48 +133,6 @@ func destructiveMulAdd(x []types.Int, y, z types.Int) {
 		sum = (x[i].ToLong() & p_LONG_MASK) + carry
 		x[i] = sum.ToInt()
 		carry = sum.ShiftR(32)
-	}
-
-}
-
-func ValueOf(val types.Long) *BigInteger {
-	if val == 0 {
-		return ZERO
-	}
-	if val > 0 && val <= pMAX_CONSTANT {
-		return posConst[val]
-	} else if val < 0 && val >= -pMAX_CONSTANT {
-		return negConst[-val]
-	}
-	return NewBigIntegerLong(val)
-}
-
-func (b *BigInteger) Add(val *BigInteger) *BigInteger {
-	if val.signum == 0 {
-		return b
-	}
-	if b.signum == 0 {
-		return val
-	}
-	if val.signum == b.signum {
-		return newBigInteger(add(b.mag, val.mag), b.signum)
-	}
-
-	cmp := b.compareMagnitute(val)
-	if cmp == 0 {
-		return ZERO
-	}
-	var resultMag []types.Int
-	if cmp > 0 {
-		resultMag = subtract_(b.mag, val.mag)
-	} else {
-		resultMag = subtract_(val.mag, b.mag)
-	}
-	resultMag = trustedStripLeadingZeroInts(resultMag)
-	if cmp == b.signum {
-		return newBigInteger(resultMag, 1)
-	} else {
-		return newBigInteger(resultMag, -1)
 	}
 }
 
@@ -311,33 +166,6 @@ func subtract_(big, little []types.Int) []types.Int {
 	return result
 }
 
-func (b *BigInteger) String() string {
-	return b.StringRadix(10)
-}
-
-func (b *BigInteger) StringRadix(radix types.Int) string {
-	if b.signum == 0 {
-		return "0"
-	}
-	radix = 10 // current only supports 10
-	//if radix < 2 || radix > 36 {
-	//	radix = 10
-	//}
-
-	if len(b.mag) <= p_SCHOENHAGE_BASE_CONVERSION_THRESHOLD {
-		return b.smallToString(radix)
-	}
-
-	var buf bytes.Buffer
-	if b.signum < 0 {
-		toString(b.negate(), &buf, radix, 0)
-		return "-" + buf.String()
-	} else {
-		toString(b, &buf, radix, 0)
-	}
-	return buf.String()
-}
-
 func newBigInteger(magnitude []types.Int, signum types.Int) *BigInteger {
 	bigInteger := &BigInteger{}
 	if len(magnitude) == 0 {
@@ -347,42 +175,6 @@ func newBigInteger(magnitude []types.Int, signum types.Int) *BigInteger {
 	}
 	bigInteger.mag = magnitude
 	return bigInteger
-}
-
-func Arraycopy(src []types.Int, srcPos types.Int, dest []types.Int, destPos, length types.Int) {
-	for i := types.Int(0); i < length; i++ {
-		dest[destPos+i] = src[srcPos+i]
-	}
-}
-
-// BitLength Returns the number of bits in the minimal two's-complement representation of this BigInteger, excluding a sign bit.
-func (b *BigInteger) BitLength() types.Int {
-	n := b.bitLengthPlusOne - 1
-	if n == -1 {
-		var m []types.Int
-		length := types.Int(len(m))
-		if length == 0 {
-			n = 0
-		} else {
-			magBitLength := ((length - 1) << 5) + bitLengthForInt(b.mag[0])
-			if b.signum < 0 {
-				pow2 := bitCount(b.mag[0]) == 1
-				for i := types.Int(1); i < length && pow2; i++ {
-					pow2 = b.mag[i] == 0
-				}
-
-				if pow2 {
-					n = magBitLength - 1
-				} else {
-					n = magBitLength
-				}
-			} else {
-				n = magBitLength
-			}
-		}
-		b.bitLengthPlusOne = n + 1
-	}
-	return n
 }
 
 func bitCount(i types.Int) types.Int {
@@ -396,34 +188,6 @@ func bitCount(i types.Int) types.Int {
 
 func bitLengthForInt(n types.Int) types.Int {
 	return 32 - NumberOfLeadingZeros(n)
-}
-
-func NumberOfLeadingZeros(i types.Int) types.Int {
-	if i <= 0 {
-		if i == 0 {
-			return 32
-		} else {
-			return 0
-		}
-	}
-	n := types.Int(31)
-	if i >= 1<<16 {
-		n -= 16
-		i = i.ShiftR(16)
-	}
-	if i >= 1<<8 {
-		n -= 8
-		i = i.ShiftR(8)
-	}
-	if i >= 1<<4 {
-		n -= 4
-		i = i.ShiftR(4)
-	}
-	if i >= 1<<2 {
-		n -= 2
-		i = i.ShiftR(2)
-	}
-	return n - i.ShiftR(1)
 }
 
 /*
@@ -468,7 +232,7 @@ func getRadixConversionCache(radix types.Int, exponent types.Int) *BigInteger {
 
 	oldLength := types.Int(len(cacheLine))
 	for i := oldLength; i <= exponent; i++ {
-		cacheLine = append(cacheLine, cacheLine[i-1].pow(2))
+		cacheLine = append(cacheLine, cacheLine[i-1].Pow(2))
 	}
 
 	if exponent >= types.Int(len(powerCache[radix])) {
@@ -506,9 +270,7 @@ func (b *BigInteger) getInt(n types.Int) types.Int {
 	if n >= types.Int(len(b.mag)) {
 		return b.sigInt()
 	}
-
 	magInt := b.mag[types.Int(len(b.mag))-n-1]
-
 	if b.signum >= 0 {
 		return magInt
 	} else {
@@ -554,7 +316,6 @@ func add(x, y []types.Int) []types.Int {
 		x = y
 		y = tmp
 	}
-
 	xIndex := len(x)
 	yIndex := len(y)
 	result := make([]types.Int, xIndex)
@@ -575,7 +336,6 @@ func add(x, y []types.Int) []types.Int {
 	}
 
 	carry := (sum.ShiftR(32)) != 0
-
 	for xIndex > 0 && carry {
 		xIndex--
 		result[xIndex] = x[xIndex] + 1
@@ -596,17 +356,9 @@ func add(x, y []types.Int) []types.Int {
 	return result
 }
 
-func (b *BigInteger) Abs() *BigInteger {
-	if b.signum >= 0 {
-		return b
-	} else {
-		return b.negate()
-	}
-}
-
-func (b *BigInteger) pow(exponent types.Int) *BigInteger {
+func (b *BigInteger) Pow(exponent types.Int) *BigInteger {
 	if exponent < 0 {
-		return nil
+		panic(errors.New("Nagative exponent"))
 	}
 
 	if b.signum == 0 {
@@ -618,7 +370,6 @@ func (b *BigInteger) pow(exponent types.Int) *BigInteger {
 	}
 
 	partToSquare := b.Abs()
-
 	powersOfTwo := partToSquare.getLowestSetBit()
 	bitsToShiftLong := (powersOfTwo * exponent).ToLong()
 	if bitsToShiftLong > p_LONG_MASK {
@@ -627,7 +378,6 @@ func (b *BigInteger) pow(exponent types.Int) *BigInteger {
 	bitsToShift := bitsToShiftLong.ToInt()
 
 	var remainingBits types.Int
-
 	if powersOfTwo > 0 {
 		partToSquare = partToSquare.shiftRight(powersOfTwo)
 		remainingBits = partToSquare.BitLength()
@@ -650,7 +400,6 @@ func (b *BigInteger) pow(exponent types.Int) *BigInteger {
 	}
 
 	scaleFactor := (remainingBits * exponent).ToLong()
-
 	if len(partToSquare.mag) == 1 && scaleFactor <= 62 {
 		var newSign types.Int
 		if b.signum < 0 && (exponent&1) == 1 {
@@ -663,7 +412,6 @@ func (b *BigInteger) pow(exponent types.Int) *BigInteger {
 		baseToPow2 := partToSquare.mag[0].ToLong() & p_LONG_MASK
 
 		workingExponent := exponent
-
 		for workingExponent != 0 {
 			if (workingExponent & 1) != 0 {
 				result *= baseToPow2
@@ -677,22 +425,19 @@ func (b *BigInteger) pow(exponent types.Int) *BigInteger {
 
 		if powersOfTwo > 0 {
 			if bitsToShift.ToLong()+scaleFactor <= 62 {
-				return ValueOf((result << bitsToShiftLong) * newSign.ToLong())
+				return BigIntegerValueOf((result << bitsToShiftLong) * newSign.ToLong())
 			} else {
-				return ValueOf(result * newSign.ToLong()).shiftLeft(bitsToShift)
+				return BigIntegerValueOf(result * newSign.ToLong()).shiftLeft(bitsToShift)
 			}
 		} else {
-			return ValueOf(result * newSign.ToLong())
+			return BigIntegerValueOf(result * newSign.ToLong())
 		}
 	} else {
 		if (b.BitLength().ToLong() * exponent.ToLong() / types.Long(32)).ToInt() > MAX_MAG_LENGTH {
 			panic(errors.New("overflow"))
 		}
-
 		answer := ONE
-
 		workingExponent := exponent
-
 		for workingExponent != 0 {
 			if (workingExponent & 1) == 1 {
 				answer = answer.Multiply(partToSquare)
@@ -714,7 +459,6 @@ func (b *BigInteger) pow(exponent types.Int) *BigInteger {
 			return answer
 		}
 	}
-
 }
 
 func (b *BigInteger) shiftRight(n types.Int) *BigInteger {
@@ -758,7 +502,6 @@ func shiftLeft(mag []types.Int, n types.Int) []types.Int {
 		}
 		newMag[i] = mag[j] << nBits
 	}
-
 	return newMag
 }
 
@@ -775,7 +518,6 @@ func (b *BigInteger) shiftRightImpl(n types.Int) *BigInteger {
 			return negConst[1]
 		}
 	}
-
 	if nBits == 0 {
 		newMagLen := magLen - nInts
 		copy(newMag, b.mag)
@@ -799,7 +541,6 @@ func (b *BigInteger) shiftRightImpl(n types.Int) *BigInteger {
 			j++
 		}
 	}
-
 	if b.signum < 0 {
 		onesLost := false
 		i := magLen - 1
@@ -813,10 +554,9 @@ func (b *BigInteger) shiftRightImpl(n types.Int) *BigInteger {
 		}
 
 		if onesLost {
-			newMag = javaIncrement(newMag)
+			newMag = increment(newMag)
 		}
 	}
-
 	return newBigInteger(newMag, b.signum)
 }
 
@@ -855,7 +595,6 @@ func (b *BigInteger) squareRec(isRecursion bool) *BigInteger {
 					panic(errors.New("overflow"))
 				}
 			}
-
 			return b.squareToomCook3()
 		}
 	}
@@ -897,7 +636,6 @@ func (b *BigInteger) squareKaratsuba() *BigInteger {
 
 	xl := b.getLower(half)
 	xh := b.getUpper(half)
-
 	xhs := xh.square() // xhs = xh ^ 2
 	xls := xl.square() // xls = xl ^ 2
 
@@ -942,7 +680,6 @@ func (b *BigInteger) getToomSlice(lowerSize types.Int, upperSize types.Int, slic
 		start = upperSize + (slice-1)*lowerSize - offset
 		end = start + lowerSize - 1
 	}
-
 	if start < 0 {
 		start = 0
 	}
@@ -951,11 +688,9 @@ func (b *BigInteger) getToomSlice(lowerSize types.Int, upperSize types.Int, slic
 	}
 
 	sliceSize = (end - start) + 1
-
 	if sliceSize <= 0 {
 		return ZERO
 	}
-
 	if start == 0 && sliceSize >= length {
 		return b.Abs()
 	}
@@ -965,35 +700,6 @@ func (b *BigInteger) getToomSlice(lowerSize types.Int, upperSize types.Int, slic
 
 	return newBigInteger(trustedStripLeadingZeroInts(intSlice), 1)
 
-}
-
-func (b *BigInteger) Subtract(val *BigInteger) *BigInteger {
-	if val.signum == 0 {
-		return b
-	}
-	if b.signum == 0 {
-		return val.negate()
-	}
-	if val.signum != b.signum {
-		return newBigInteger(add(b.mag, val.mag), b.signum)
-	}
-
-	cmp := b.compareMagnitute(val)
-	if cmp == 0 {
-		return ZERO
-	}
-	var resultMag []types.Int
-	if cmp > 0 {
-		resultMag = subtract_(b.mag, val.mag)
-	} else {
-		resultMag = subtract_(val.mag, b.mag)
-	}
-	resultMag = trustedStripLeadingZeroInts(resultMag)
-	if cmp == b.signum {
-		return newBigInteger(resultMag, 1)
-	} else {
-		return newBigInteger(resultMag, -1)
-	}
 }
 
 func (b *BigInteger) exactDivideBy3() *BigInteger {
@@ -1022,10 +728,6 @@ func (b *BigInteger) exactDivideBy3() *BigInteger {
 	}
 	result = trustedStripLeadingZeroInts(result)
 	return newBigInteger(result, b.signum)
-}
-
-func (b *BigInteger) Multiply(val *BigInteger) *BigInteger {
-	return b.multiplyRec(val, false)
 }
 
 func (b *BigInteger) multiplyRec(val *BigInteger, isRecursion bool) *BigInteger {
@@ -1079,7 +781,6 @@ func (b *BigInteger) smallToString(radix types.Int) string {
 
 	maxNumDigitGroups := (4*len(b.mag) + 6) / 7
 	digitGroup := make([]string, maxNumDigitGroups)
-
 	tmp := b.Abs()
 	numGroups := 0
 	for tmp.signum != 0 {
@@ -1111,23 +812,6 @@ func (b *BigInteger) smallToString(radix types.Int) string {
 		buf.WriteString(digitGroup[i])
 	}
 	return buf.String()
-}
-
-// LongValue if this BigInteger is too big to fit in a long, only the low-order 64 bits are returned.
-func (b *BigInteger) LongValue() types.Long {
-	result := types.Long(0)
-	for i := types.Int(1); i >= 0; i-- {
-		result = (result << 32) + (b.getInt(i).ToLong() & p_LONG_MASK)
-	}
-	return result
-}
-
-func (b *BigInteger) DivideAndRemainder(val *BigInteger) []*BigInteger {
-	if len(val.mag) < p_BURNIKEL_ZIEGLER_THRESHOLD || len(b.mag)-len(val.mag) < p_BURNIKEL_ZIEGLER_OFFSET {
-		return b.divideAndRemainderKnuth(val)
-	} else {
-		return b.divideAndRemainderBurnikelZiegler(val)
-	}
 }
 
 func (b *BigInteger) divideAndRemainderKnuth(val *BigInteger) []*BigInteger {
@@ -1187,15 +871,6 @@ func (b *BigInteger) compareMagnitute(val *BigInteger) types.Int {
 	return 0
 }
 
-func (b *BigInteger) Divide(val *BigInteger) *BigInteger {
-	if len(val.mag) < p_BURNIKEL_ZIEGLER_THRESHOLD ||
-		len(b.mag)-len(val.mag) < p_BURNIKEL_ZIEGLER_OFFSET {
-		return b.divideKnuth(val)
-	} else {
-		return b.divideBurnikelZiegler(val)
-	}
-}
-
 func (b *BigInteger) divideKnuth(val *BigInteger) *BigInteger {
 	q := newMutableBigIntegerDefault()
 	a := newMutableBigIntegerArray(b.mag)
@@ -1206,6 +881,64 @@ func (b *BigInteger) divideKnuth(val *BigInteger) *BigInteger {
 
 func (b *BigInteger) divideBurnikelZiegler(val *BigInteger) *BigInteger {
 	return b.divideAndRemainderBurnikelZiegler(val)[0]
+}
+
+func (b *BigInteger) Subtract(val *BigInteger) *BigInteger {
+	if val.signum == 0 {
+		return b
+	}
+	if b.signum == 0 {
+		return val.negate()
+	}
+	if val.signum != b.signum {
+		return newBigInteger(add(b.mag, val.mag), b.signum)
+	}
+
+	cmp := b.compareMagnitute(val)
+	if cmp == 0 {
+		return ZERO
+	}
+	var resultMag []types.Int
+	if cmp > 0 {
+		resultMag = subtract_(b.mag, val.mag)
+	} else {
+		resultMag = subtract_(val.mag, b.mag)
+	}
+	resultMag = trustedStripLeadingZeroInts(resultMag)
+	if cmp == b.signum {
+		return newBigInteger(resultMag, 1)
+	} else {
+		return newBigInteger(resultMag, -1)
+	}
+}
+func (b *BigInteger) Multiply(val *BigInteger) *BigInteger {
+	return b.multiplyRec(val, false)
+}
+
+// LongValue if this BigInteger is too bigger to fit in a long, only the low-order 64 bits are returned.
+func (b *BigInteger) LongValue() types.Long {
+	result := types.Long(0)
+	for i := types.Int(1); i >= 0; i-- {
+		result = (result << 32) + (b.getInt(i).ToLong() & p_LONG_MASK)
+	}
+	return result
+}
+
+func (b *BigInteger) DivideAndRemainder(val *BigInteger) []*BigInteger {
+	if len(val.mag) < p_BURNIKEL_ZIEGLER_THRESHOLD || len(b.mag)-len(val.mag) < p_BURNIKEL_ZIEGLER_OFFSET {
+		return b.divideAndRemainderKnuth(val)
+	} else {
+		return b.divideAndRemainderBurnikelZiegler(val)
+	}
+}
+
+func (b *BigInteger) Divide(val *BigInteger) *BigInteger {
+	if len(val.mag) < p_BURNIKEL_ZIEGLER_THRESHOLD ||
+		len(b.mag)-len(val.mag) < p_BURNIKEL_ZIEGLER_OFFSET {
+		return b.divideKnuth(val)
+	} else {
+		return b.divideBurnikelZiegler(val)
+	}
 }
 
 func (b *BigInteger) Sqrt() *BigInteger {
@@ -1222,88 +955,6 @@ func (b *BigInteger) LongValueExact() types.Long {
 		return b.LongValue()
 	} else {
 		panic(errors.New("BigInteger out of long range"))
-	}
-}
-
-func (b *BigInteger) DoubleValue() types.Double {
-	if b.signum == 0 {
-		return 0.0
-	}
-
-	exponent := ((types.Int(len(b.mag)) - 1) << 5) + bigLengthForInt(b.mag[0]) - 1
-
-	if exponent < 63 {
-		return b.LongValue().ToDouble()
-	} else if exponent > 1023 {
-		if b.signum > 0 {
-			return types.POSITIVE_INFINITY
-		} else {
-			return types.NEGATIVE_INFINITY
-		}
-	}
-
-	shift := exponent - 53
-	var twiceSignifFloor types.Long
-	var nBits, nBits2, highBits, lowBits types.Int
-
-	nBits = shift & 0x1f
-	nBits2 = 32 - nBits
-
-	if nBits == 0 {
-		highBits = b.mag[0]
-		lowBits = b.mag[1]
-	} else {
-		highBits = b.mag[0].ShiftR(nBits)
-		lowBits = (b.mag[0] << nBits2) | b.mag[1].ShiftR(nBits)
-		if highBits == 0 {
-			highBits = lowBits
-			lowBits = (b.mag[1] << nBits2) | b.mag[2].ShiftR(nBits)
-		}
-	}
-
-	twiceSignifFloor = ((highBits.ToLong() & p_LONG_MASK) << 32) | (lowBits.ToLong() & p_LONG_MASK)
-
-	signifFloor := twiceSignifFloor >> 1
-	signifFloor &= 0x000FFFFFFFFFFFFF // remove the implied bit
-
-	increment := (twiceSignifFloor&1) != 0 && ((signifFloor&1) != 0 || b.Abs().getLowestSetBit() < shift)
-	signifRounded := types.Long(0)
-	if increment {
-		signifRounded = signifFloor + 1
-	} else {
-		signifRounded = signifFloor
-	}
-	bits := (exponent + 1023).ToLong() << 52
-
-	bits += signifRounded
-	bits |= b.signum.ToLong() & MIN_INT64
-	return types.DoubleFromBits(bits)
-}
-
-func (b *BigInteger) SqrtAndRemainder() []*BigInteger {
-	s := b.Sqrt()
-	r := b.Subtract(s.square())
-	if r.CompareTo(ZERO) < 0 {
-		panic(errors.New("remainder value < 0"))
-	}
-	return []*BigInteger{s, r}
-}
-
-func (b *BigInteger) CompareTo(val *BigInteger) types.Int {
-	if b.signum == val.signum {
-		switch b.signum {
-		case 1:
-			return b.compareMagnitute(val)
-		case -1:
-			return val.compareMagnitute(b)
-		default:
-			return 0
-		}
-	}
-	if b.signum > val.signum {
-		return 1
-	} else {
-		return -1
 	}
 }
 
@@ -1612,7 +1263,7 @@ func implSquareToLenChecks(x []types.Int, length types.Int, z []types.Int, zlen 
 	}
 }
 
-func javaIncrement(val []types.Int) []types.Int {
+func increment(val []types.Int) []types.Int {
 	lastSum := types.Int(0)
 	for i := len(val) - 1; i >= 0 && lastSum == 0; i-- {
 		val[i] += 1
@@ -1623,6 +1274,137 @@ func javaIncrement(val []types.Int) []types.Int {
 		val[0] = 1
 	}
 	return val
+}
+
+func newBigIntegerCharArray(val []uint8, sign, length types.Int) *BigInteger {
+	b := &BigInteger{}
+	var cursor, numDigits types.Int
+
+	for cursor < length && tool.Digit(val[cursor], 10) == 0 {
+		cursor++
+	}
+	if cursor == length {
+		b.signum = 0
+		b.mag = ZERO.mag
+		return b
+	}
+
+	numDigits = length - cursor
+	b.signum = sign
+	var numWords types.Int
+	if length < 10 {
+		numWords = 1
+	} else {
+		numBits := (numDigits * bitsPerDigit[10]).ShiftR(10) + 1
+		if (numBits + 31).ToLong() >= 1<<32 {
+			panic(errors.New("overflow"))
+		}
+		numWords = (numBits + 31).ShiftR(5)
+	}
+	magnitude := make([]types.Int, numWords)
+
+	firstGroupLen := numDigits % digitsPerInt[10]
+	if firstGroupLen == 0 {
+		firstGroupLen = digitsPerInt[10]
+	}
+
+	i, _ := strconv.ParseInt(string(val)[cursor:cursor+firstGroupLen], 10, 32)
+	cursor += firstGroupLen
+	magnitude[numWords-1] = types.Int(i)
+
+	for cursor < length {
+		i, _ = strconv.ParseInt(string(val)[cursor:cursor+digitsPerInt[10]], 10, 32)
+		cursor += digitsPerInt[10]
+		groupVal := types.Int(i)
+		destructiveMulAdd(magnitude, intRadix[10], groupVal)
+	}
+	b.mag = trustedStripLeadingZeroInts(magnitude)
+	if types.Int(len(b.mag)) >= MAX_MAG_LENGTH {
+		b.checkRange()
+	}
+	return b
+}
+
+func (b *BigInteger) DoubleValue() types.Double {
+	if b.signum == 0 {
+		return 0.0
+	}
+
+	exponent := ((types.Int(len(b.mag)) - 1) << 5) + bigLengthForInt(b.mag[0]) - 1
+
+	if exponent < 63 {
+		return b.LongValue().ToDouble()
+	} else if exponent > 1023 {
+		if b.signum > 0 {
+			return types.POSITIVE_INFINITY
+		} else {
+			return types.NEGATIVE_INFINITY
+		}
+	}
+
+	shift := exponent - 53
+	var twiceSignifFloor types.Long
+	var nBits, nBits2, highBits, lowBits types.Int
+
+	nBits = shift & 0x1f
+	nBits2 = 32 - nBits
+
+	if nBits == 0 {
+		highBits = b.mag[0]
+		lowBits = b.mag[1]
+	} else {
+		highBits = b.mag[0].ShiftR(nBits)
+		lowBits = (b.mag[0] << nBits2) | b.mag[1].ShiftR(nBits)
+		if highBits == 0 {
+			highBits = lowBits
+			lowBits = (b.mag[1] << nBits2) | b.mag[2].ShiftR(nBits)
+		}
+	}
+
+	twiceSignifFloor = ((highBits.ToLong() & p_LONG_MASK) << 32) | (lowBits.ToLong() & p_LONG_MASK)
+
+	signifFloor := twiceSignifFloor >> 1
+	signifFloor &= 0x000FFFFFFFFFFFFF // remove the implied bit
+
+	increment := (twiceSignifFloor&1) != 0 && ((signifFloor&1) != 0 || b.Abs().getLowestSetBit() < shift)
+	signifRounded := types.Long(0)
+	if increment {
+		signifRounded = signifFloor + 1
+	} else {
+		signifRounded = signifFloor
+	}
+	bits := (exponent + 1023).ToLong() << 52
+
+	bits += signifRounded
+	bits |= b.signum.ToLong() & MIN_INT64
+	return types.DoubleFromBits(bits)
+}
+
+func (b *BigInteger) SqrtAndRemainder() []*BigInteger {
+	s := b.Sqrt()
+	r := b.Subtract(s.square())
+	if r.CompareTo(ZERO) < 0 {
+		panic(errors.New("remainder value < 0"))
+	}
+	return []*BigInteger{s, r}
+}
+
+func (b *BigInteger) CompareTo(val *BigInteger) types.Int {
+	if b.signum == val.signum {
+		switch b.signum {
+		case 1:
+			return b.compareMagnitute(val)
+		case -1:
+			return val.compareMagnitute(b)
+		default:
+			return 0
+		}
+	}
+	if b.signum > val.signum {
+		return 1
+	} else {
+		return -1
+	}
 }
 
 func NumberOfTrailingZeros(i types.Int) types.Int {
@@ -1652,4 +1434,256 @@ func NumberOfTrailingZeros(i types.Int) types.Int {
 		i = y
 	}
 	return n - (i << 1).ShiftR(31)
+}
+
+// BigIntegerValueOf, if |val| <= 16, return posConst cache
+func BigIntegerValueOf(val types.Long) *BigInteger {
+	if val == 0 {
+		return ZERO
+	}
+	if val > 0 && val <= pMAX_CONSTANT {
+		return posConst[val]
+	} else if val < 0 && val >= -pMAX_CONSTANT {
+		return negConst[-val]
+	}
+	return NewBigIntegerLong(val)
+}
+
+func NewBigIntegerLong(val types.Long) *BigInteger {
+	bigInteger := &BigInteger{}
+	if val < 0 {
+		val = -val
+		bigInteger.signum = -1 // set signum as -1, value is negative
+	} else {
+		bigInteger.signum = 1
+	}
+
+	highBit := (val >> 32).ToInt()
+	if highBit == 0 {
+		bigInteger.mag = []types.Int{val.ToInt()} // high 32 bits is all zero
+	} else {
+		bigInteger.mag = []types.Int{highBit, val.ToInt()}
+	}
+	return bigInteger
+}
+
+func NewBigIntegerString(val *string) *BigInteger {
+	return NewBigIntegerStringRadix(val, 10)
+}
+
+func NewBigIntegerStringRadix(val *string, radix types.Int) *BigInteger {
+	b := &BigInteger{}
+	var cursor, numDigits types.Int
+	length := types.Int(len(*val))
+
+	if radix < 2 || radix > 36 {
+		panic(errors.New("Radix out of range"))
+	}
+	if length == 0 {
+		panic(errors.New("Zero length BigInteger"))
+	}
+
+	sign := 1
+	index1 := strings.LastIndex(*val, "-")
+	index2 := strings.LastIndex(*val, "+")
+	if index1 >= 0 {
+		if index1 != 0 || index2 >= 0 {
+			panic(errors.New("Illegal embedded sign character"))
+		}
+		sign = -1
+		cursor = 1
+	} else if index2 >= 0 {
+		if index2 != 0 {
+			panic(errors.New("Illegal embedded sign character"))
+		}
+		cursor = 1
+	}
+	if cursor == length {
+		panic(errors.New("Zero length BigInteger"))
+	}
+
+	for cursor < length && tool.Digit((*val)[cursor], uint8(radix)) == 0 {
+		cursor++
+	}
+
+	if cursor == length {
+		b.signum = 0
+		b.mag = ZERO.mag
+		return b
+	}
+
+	numDigits = length - cursor
+	b.signum = types.Int(sign)
+
+	numBits := ((numDigits * bitsPerDigit[radix]).ShiftR(10) + 1).ToLong()
+	if numBits+31 >= (types.Long(1) << 32) {
+		panic(errors.New("overflow"))
+	}
+	numWords := (numBits + 31).ToInt().ShiftR(5)
+	magnitude := make([]types.Int, numWords)
+
+	firstGroupLen := numDigits % digitsPerInt[radix]
+	if firstGroupLen == 0 {
+		firstGroupLen = digitsPerInt[radix]
+	}
+	group := (*val)[cursor : cursor+firstGroupLen]
+	cursor += firstGroupLen
+	res, _ := strconv.ParseInt(group, int(radix), 32)
+	magnitude[numWords-1] = types.Int(res)
+	if magnitude[numWords-1] < 0 {
+		panic(errors.New("Illegal digit"))
+	}
+
+	superRadix := intRadix[radix]
+	var groupVal types.Int
+	for cursor < length {
+		group = (*val)[cursor : cursor+digitsPerInt[radix]]
+		cursor += digitsPerInt[radix]
+		res, _ = strconv.ParseInt(group, int(radix), 32)
+		groupVal = types.Int(res)
+		if groupVal < 0 {
+			panic(errors.New("Illegal digit"))
+		}
+		destructiveMulAdd(magnitude, superRadix, groupVal)
+	}
+	b.mag = trustedStripLeadingZeroInts(magnitude)
+	if types.Int(len(b.mag)) >= MAX_MAG_LENGTH {
+		b.checkRange()
+	}
+	return b
+}
+
+func (b *BigInteger) Add(val *BigInteger) *BigInteger {
+	if val.signum == 0 {
+		return b
+	}
+	if b.signum == 0 {
+		return val
+	}
+	if val.signum == b.signum {
+		return newBigInteger(add(b.mag, val.mag), b.signum)
+	}
+
+	cmp := b.compareMagnitute(val)
+	if cmp == 0 {
+		return ZERO
+	}
+	var resultMag []types.Int
+	if cmp > 0 {
+		resultMag = subtract_(b.mag, val.mag)
+	} else {
+		resultMag = subtract_(val.mag, b.mag)
+	}
+	resultMag = trustedStripLeadingZeroInts(resultMag)
+	if cmp == b.signum {
+		return newBigInteger(resultMag, 1)
+	} else {
+		return newBigInteger(resultMag, -1)
+	}
+}
+
+func (b *BigInteger) String() string {
+	return b.StringRadix(10)
+}
+
+func (b *BigInteger) StringRadix(radix types.Int) string {
+	if b.signum == 0 {
+		return "0"
+	}
+	if radix < 2 || radix > 36 {
+		radix = 10
+	}
+
+	if len(b.mag) <= p_SCHOENHAGE_BASE_CONVERSION_THRESHOLD {
+		return b.smallToString(radix)
+	}
+
+	var buf bytes.Buffer
+	if b.signum < 0 {
+		toString(b.negate(), &buf, radix, 0)
+		return "-" + buf.String()
+	} else {
+		toString(b, &buf, radix, 0)
+	}
+	return buf.String()
+}
+
+func Arraycopy(src []types.Int, srcPos types.Int, dest []types.Int, destPos, length types.Int) {
+	for i := types.Int(0); i < length; i++ {
+		dest[destPos+i] = src[srcPos+i]
+	}
+}
+
+// BitLength Returns the number of bits in the minimal two's-complement representation of this BigInteger, excluding a sign bit.
+func (b *BigInteger) BitLength() types.Int {
+	n := b.bitLengthPlusOne - 1
+	if n == -1 {
+		var m []types.Int
+		length := types.Int(len(m))
+		if length == 0 {
+			n = 0
+		} else {
+			magBitLength := ((length - 1) << 5) + bitLengthForInt(b.mag[0])
+			if b.signum < 0 {
+				pow2 := bitCount(b.mag[0]) == 1
+				for i := types.Int(1); i < length && pow2; i++ {
+					pow2 = b.mag[i] == 0
+				}
+				if pow2 {
+					n = magBitLength - 1
+				} else {
+					n = magBitLength
+				}
+			} else {
+				n = magBitLength
+			}
+		}
+		b.bitLengthPlusOne = n + 1
+	}
+	return n
+}
+
+func NumberOfLeadingZerosForLong(i types.Long) types.Int {
+	x := i.ShiftR(32).ToInt()
+	if x == 0 {
+		return 32 + NumberOfLeadingZeros(i.ToInt())
+	} else {
+		return NumberOfLeadingZeros(x)
+	}
+}
+
+func NumberOfLeadingZeros(i types.Int) types.Int {
+	if i <= 0 {
+		if i == 0 {
+			return 32
+		} else {
+			return 0
+		}
+	}
+	n := types.Int(31)
+	if i >= 1<<16 {
+		n -= 16
+		i = i.ShiftR(16)
+	}
+	if i >= 1<<8 {
+		n -= 8
+		i = i.ShiftR(8)
+	}
+	if i >= 1<<4 {
+		n -= 4
+		i = i.ShiftR(4)
+	}
+	if i >= 1<<2 {
+		n -= 2
+		i = i.ShiftR(2)
+	}
+	return n - i.ShiftR(1)
+}
+
+func (b *BigInteger) Abs() *BigInteger {
+	if b.signum >= 0 {
+		return b
+	} else {
+		return b.negate()
+	}
 }
