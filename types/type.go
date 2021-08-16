@@ -52,3 +52,7 @@ func (l Long) ToDouble() Double {
 func (l Long) String() string {
 	return fmt.Sprintf("%d", l)
 }
+
+func (l Long) Abs() Long {
+	return Long(math.Abs(float64(l)))
+}

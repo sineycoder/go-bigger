@@ -94,3 +94,9 @@ func Digit(a uint8, radix uint8) types.Int {
 	}
 	return -1
 }
+
+func Arraycopy(src []types.Int, srcPos types.Int, dest []types.Int, destPos, length types.Int) {
+	for i := types.Int(0); i < length; i++ {
+		dest[destPos+i] = src[srcPos+i]
+	}
+}

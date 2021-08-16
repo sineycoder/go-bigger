@@ -28,7 +28,7 @@ const (
 	p_SCHOENHAGE_BASE_CONVERSION_THRESHOLD = 20
 	p_BURNIKEL_ZIEGLER_THRESHOLD           = 80
 	p_BURNIKEL_ZIEGLER_OFFSET              = 40
-	MAX_MAG_LENGTH                         = MAX_INT32/32 + 1
+	p_MAX_MAG_LENGTH                       = MAX_INT32/32 + 1
 )
 
 var (
@@ -39,10 +39,10 @@ var (
 	NEGATIVE_ONE        = BigIntegerValueOf(-1)
 	p_LOG_TWO           = types.Double(math.Log(2.0))
 	p_LONG_MASK         = types.Long(0xffffffff)
-	posConst            = make([]*BigInteger, pMAX_CONSTANT+1)
-	negConst            = make([]*BigInteger, pMAX_CONSTANT+1)
+	posConst            = make([]*bigInteger, pMAX_CONSTANT+1)
+	negConst            = make([]*bigInteger, pMAX_CONSTANT+1)
 	logCache            = make([]types.Double, 32+1)
-	powerCache          = make([][]*BigInteger, 32+1)
+	powerCache          = make([][]*bigInteger, 32+1)
 	zeros               = "000000000000000000000000000000000000000000000000000000000000000" // the length of zeros, length=63
 	lowestSetBitPlusTwo types.Int
 	intRadix            = []types.Int{0, 0,
@@ -65,7 +65,7 @@ var (
 	digitsPerLong = []types.Int{0, 0,
 		62, 39, 31, 27, 24, 22, 20, 19, 18, 18, 17, 17, 16, 16, 15, 15, 15, 14,
 		14, 14, 14, 13, 13, 13, 13, 13, 13, 12, 12, 12, 12, 12, 12, 12, 12}
-	longRadix = []*BigInteger{nil, nil,
+	longRadix = []*bigInteger{nil, nil,
 		BigIntegerValueOf(0x4000000000000000), BigIntegerValueOf(0x383d9170b85ff80b),
 		BigIntegerValueOf(0x4000000000000000), BigIntegerValueOf(0x6765c793fa10079d),
 		BigIntegerValueOf(0x41c21cb8e1000000), BigIntegerValueOf(0x3642798750226111),
@@ -86,7 +86,7 @@ var (
 		BigIntegerValueOf(0x41c21cb8e1000000)}
 )
 
-type BigInteger struct {
+type bigInteger struct {
 	signum                    types.Int   // -1 for negative, 0 for zero, 1 for positive
 	mag                       []types.Int // order
 	firstNonzeroIntNumPlusTwo types.Int
@@ -96,18 +96,18 @@ type BigInteger struct {
 func init() {
 	// cache
 	for i := types.Int(1); i <= pMAX_CONSTANT; i++ {
-		posConst[i] = &BigInteger{
+		posConst[i] = &bigInteger{
 			signum: 1,
 			mag:    []types.Int{i},
 		}
-		negConst[i] = &BigInteger{
+		negConst[i] = &bigInteger{
 			signum: -1,
 			mag:    []types.Int{i},
 		}
 	}
 
 	for i := 2; i <= 32; i++ {
-		powerCache[i] = []*BigInteger{
+		powerCache[i] = []*bigInteger{
 			BigIntegerValueOf(types.Long(i)),
 		}
 		logCache[i] = types.Double(math.Log(float64(i)))
@@ -134,6 +134,68 @@ func destructiveMulAdd(x []types.Int, y, z types.Int) {
 		x[i] = sum.ToInt()
 		carry = sum.ShiftR(32)
 	}
+}
+
+func subtract2(val types.Long, little []types.Int) []types.Int {
+	highWord := val.ShiftR(32).ToInt()
+	if highWord == 0 {
+		result := make([]types.Int, 1)
+		result[0] = (val - (little[0].ToLong() & p_LONG_MASK)).ToInt()
+		return result
+	} else {
+		result := make([]types.Int, 2)
+		if len(little) == 1 {
+			difference := (val.ToInt().ToLong() & p_LONG_MASK) - (little[0].ToLong() - p_LONG_MASK)
+			result[1] = difference.ToInt()
+			borrow := (difference >> 32) != 0
+			if borrow {
+				result[0] = highWord - 1
+			} else {
+				result[0] = highWord
+			}
+			return result
+		} else {
+			difference := (val.ToInt().ToLong() & p_LONG_MASK) - (little[1].ToLong() & p_LONG_MASK)
+			result[1] = difference.ToInt()
+			difference = (highWord.ToLong() & p_LONG_MASK) - (little[0].ToLong() & p_LONG_MASK) + (difference >> 32)
+			result[0] = difference.ToInt()
+			return result
+		}
+	}
+}
+
+func subtract(big []types.Int, val types.Long) []types.Int {
+	highWord := val.ShiftR(32).ToInt()
+	bigIndex := types.Int(len(big))
+	result := make([]types.Int, bigIndex)
+	difference := types.Long(0)
+
+	if highWord == 0 {
+		bigIndex--
+		difference = (big[bigIndex].ToLong() & p_LONG_MASK) - val
+		result[bigIndex] = difference.ToInt()
+	} else {
+		bigIndex--
+		difference = (big[bigIndex].ToLong() & p_LONG_MASK) - (val & p_LONG_MASK)
+		result[bigIndex] = difference.ToInt()
+		bigIndex--
+		difference = (big[bigIndex].ToLong() & p_LONG_MASK) - (highWord.ToLong() & p_LONG_MASK) + (difference >> 32)
+		result[bigIndex] = difference.ToInt()
+	}
+
+	borrow := (difference >> 32) != 0
+	for bigIndex > 0 && borrow {
+		bigIndex--
+		result[bigIndex] -= 1
+		borrow = result[bigIndex] == -1
+	}
+
+	for bigIndex > 0 {
+		bigIndex--
+		result[bigIndex] = big[bigIndex]
+	}
+
+	return result
 }
 
 func subtract_(big, little []types.Int) []types.Int {
@@ -166,8 +228,8 @@ func subtract_(big, little []types.Int) []types.Int {
 	return result
 }
 
-func newBigInteger(magnitude []types.Int, signum types.Int) *BigInteger {
-	bigInteger := &BigInteger{}
+func newBigInteger(magnitude []types.Int, signum types.Int) *bigInteger {
+	bigInteger := &bigInteger{}
 	if len(magnitude) == 0 {
 		bigInteger.signum = 0
 	} else {
@@ -191,9 +253,9 @@ func bitLengthForInt(n types.Int) types.Int {
 }
 
 /*
-toString Converts the specified BigInteger to a string and appends to buf.
+toString Converts the specified bigInteger to a string and appends to buf.
 */
-func toString(u *BigInteger, buf *bytes.Buffer, radix types.Int, digits types.Int) {
+func toString(u *bigInteger, buf *bytes.Buffer, radix types.Int, digits types.Int) {
 
 	if len(u.mag) <= p_SCHOENHAGE_BASE_CONVERSION_THRESHOLD {
 		s := u.smallToString(radix)
@@ -213,7 +275,7 @@ func toString(u *BigInteger, buf *bytes.Buffer, radix types.Int, digits types.In
 	// Calculate a value for n in the equation radix^(2^n) = u
 	n = types.Int(math.Round(math.Log(float64(types.Double(b)*p_LOG_TWO))/float64(p_LOG_TWO) - 1.0))
 	v := getRadixConversionCache(radix, n)
-	var result []*BigInteger
+	var result []*bigInteger
 	result = u.DivideAndRemainder(v)
 
 	expectedDigits := types.Int(1 << n)
@@ -224,7 +286,7 @@ func toString(u *BigInteger, buf *bytes.Buffer, radix types.Int, digits types.In
 
 // getRadixConversionCache
 // Returns the value radix^(2^exponent) from cache. If this value not exist, it is added.
-func getRadixConversionCache(radix types.Int, exponent types.Int) *BigInteger {
+func getRadixConversionCache(radix types.Int, exponent types.Int) *bigInteger {
 	cacheLine := powerCache[radix]
 	if exponent < types.Int(len(cacheLine)) {
 		return cacheLine[exponent]
@@ -242,7 +304,7 @@ func getRadixConversionCache(radix types.Int, exponent types.Int) *BigInteger {
 	return cacheLine[exponent]
 }
 
-func (bi *BigInteger) getLowestSetBit() types.Int {
+func (bi *bigInteger) getLowestSetBit() types.Int {
 	lsb := lowestSetBitPlusTwo - 2
 	if lsb == -2 { // lsb not initialized yet
 		lsb = 0
@@ -263,7 +325,7 @@ func (bi *BigInteger) getLowestSetBit() types.Int {
 	return lsb
 }
 
-func (b *BigInteger) getInt(n types.Int) types.Int {
+func (b *bigInteger) getInt(n types.Int) types.Int {
 	if n < 0 {
 		return 0
 	}
@@ -282,7 +344,7 @@ func (b *BigInteger) getInt(n types.Int) types.Int {
 	}
 }
 
-func (b *BigInteger) firstNonzeroIntNum() types.Int {
+func (b *bigInteger) firstNonzeroIntNum() types.Int {
 	fn := b.firstNonzeroIntNumPlusTwo - 2
 	if fn == -2 {
 		var i, mlen types.Int
@@ -295,7 +357,7 @@ func (b *BigInteger) firstNonzeroIntNum() types.Int {
 	return fn
 }
 
-func (b *BigInteger) sigInt() types.Int {
+func (b *bigInteger) sigInt() types.Int {
 	if b.signum < 0 {
 		return -1
 	} else {
@@ -303,9 +365,57 @@ func (b *BigInteger) sigInt() types.Int {
 	}
 }
 
-// Returns a negative BigInteger
-func (b *BigInteger) negate() *BigInteger {
+// Returns a negative bigInteger
+func (b *bigInteger) negate() *bigInteger {
 	return newBigInteger(b.mag, -b.signum)
+}
+
+func add_(x []types.Int, val types.Long) []types.Int {
+	var result []types.Int
+	var sum types.Long
+	xIndex := types.Int(len(x))
+	highWord := val.ShiftR(32).ToInt()
+	if highWord == 0 {
+		result = make([]types.Int, xIndex)
+		xIndex--
+		sum = (x[xIndex].ToLong() & p_LONG_MASK) + val
+		result[xIndex] = sum.ToInt()
+	} else {
+		if xIndex == 1 {
+			result = make([]types.Int, 2)
+			sum = val + (x[0].ToLong() & p_LONG_MASK)
+			result[1] = sum.ToInt()
+			result[0] = sum.ShiftR(32).ToInt()
+			return result
+		} else {
+			result = make([]types.Int, xIndex)
+			xIndex--
+			sum = (x[xIndex].ToLong() & p_LONG_MASK) + (val & p_LONG_MASK)
+			result[xIndex] = sum.ToInt()
+			xIndex--
+			sum = (x[xIndex].ToLong() & p_LONG_MASK) + (highWord.ToLong() & p_LONG_MASK) + sum.ShiftR(32)
+			result[xIndex] = sum.ToInt()
+		}
+	}
+	carry := sum.ShiftR(32) != 0
+	for xIndex > 0 && carry {
+		xIndex--
+		result[xIndex] = x[xIndex] + 1
+		carry = result[xIndex] == 0
+	}
+
+	for xIndex > 0 {
+		xIndex--
+		result[xIndex] = x[xIndex] + 1
+	}
+
+	if carry {
+		bigger := make([]types.Int, len(result)+1)
+		tool.Arraycopy(result, 0, bigger, 1, types.Int(len(result)))
+		bigger[0] = 0x01
+		return bigger
+	}
+	return result
 }
 
 // add Adds the contents of the int arrays x and y
@@ -349,14 +459,14 @@ func add(x, y []types.Int) []types.Int {
 
 	if carry {
 		bigger := make([]types.Int, len(result)+1)
-		Arraycopy(result, 0, bigger, 1, types.Int(len(result)))
+		tool.Arraycopy(result, 0, bigger, 1, types.Int(len(result)))
 		bigger[0] = 0x01
 		return bigger
 	}
 	return result
 }
 
-func (b *BigInteger) Pow(exponent types.Int) *BigInteger {
+func (b *bigInteger) Pow(exponent types.Int) *bigInteger {
 	if exponent < 0 {
 		panic(errors.New("Nagative exponent"))
 	}
@@ -433,7 +543,7 @@ func (b *BigInteger) Pow(exponent types.Int) *BigInteger {
 			return BigIntegerValueOf(result * newSign.ToLong())
 		}
 	} else {
-		if (b.BitLength().ToLong() * exponent.ToLong() / types.Long(32)).ToInt() > MAX_MAG_LENGTH {
+		if (b.BitLength().ToLong() * exponent.ToLong() / types.Long(32)).ToInt() > p_MAX_MAG_LENGTH {
 			panic(errors.New("overflow"))
 		}
 		answer := ONE
@@ -461,7 +571,7 @@ func (b *BigInteger) Pow(exponent types.Int) *BigInteger {
 	}
 }
 
-func (b *BigInteger) shiftRight(n types.Int) *BigInteger {
+func (b *bigInteger) shiftRight(n types.Int) *bigInteger {
 	if b.signum == 0 {
 		return ZERO
 	}
@@ -482,7 +592,7 @@ func shiftLeft(mag []types.Int, n types.Int) []types.Int {
 
 	if nBits == 0 {
 		newMag = make([]types.Int, magLen+nInts)
-		Arraycopy(mag, 0, newMag, 0, magLen)
+		tool.Arraycopy(mag, 0, newMag, 0, magLen)
 	} else {
 		i := 0
 		nBits2 := 32 - nBits
@@ -505,7 +615,7 @@ func shiftLeft(mag []types.Int, n types.Int) []types.Int {
 	return newMag
 }
 
-func (b *BigInteger) shiftRightImpl(n types.Int) *BigInteger {
+func (b *bigInteger) shiftRightImpl(n types.Int) *bigInteger {
 	nInts := n.ShiftR(5)
 	nBits := n & 0x1f
 	magLen := types.Int(len(b.mag))
@@ -560,7 +670,7 @@ func (b *BigInteger) shiftRightImpl(n types.Int) *BigInteger {
 	return newBigInteger(newMag, b.signum)
 }
 
-func (b *BigInteger) shiftLeft(n types.Int) *BigInteger {
+func (b *bigInteger) shiftLeft(n types.Int) *bigInteger {
 	if b.signum == 0 {
 		return ZERO
 	}
@@ -573,11 +683,11 @@ func (b *BigInteger) shiftLeft(n types.Int) *BigInteger {
 	}
 }
 
-func (b *BigInteger) square() *BigInteger {
+func (b *bigInteger) square() *bigInteger {
 	return b.squareRec(false)
 }
 
-func (b *BigInteger) squareRec(isRecursion bool) *BigInteger {
+func (b *bigInteger) squareRec(isRecursion bool) *bigInteger {
 	if b.signum == 0 {
 		return ZERO
 	}
@@ -591,7 +701,7 @@ func (b *BigInteger) squareRec(isRecursion bool) *BigInteger {
 			return b.squareKaratsuba()
 		} else {
 			if !isRecursion {
-				if bitLength(b.mag, types.Int(len(b.mag))).ToLong() > types.Long(16)*(MAX_MAG_LENGTH).ToLong() {
+				if bitLength(b.mag, types.Int(len(b.mag))).ToLong() > types.Long(16)*(p_MAX_MAG_LENGTH).ToLong() {
 					panic(errors.New("overflow"))
 				}
 			}
@@ -600,16 +710,16 @@ func (b *BigInteger) squareRec(isRecursion bool) *BigInteger {
 	}
 }
 
-func (b *BigInteger) squareToomCook3() *BigInteger {
+func (b *bigInteger) squareToomCook3() *bigInteger {
 	length := types.Int(len(b.mag))
 	k := (length + 2) / 3
 	r := length - 2*k
 
-	var a0, a1, a2 *BigInteger
+	var a0, a1, a2 *bigInteger
 	a2 = b.getToomSlice(k, r, 0, length)
 	a1 = b.getToomSlice(k, r, 1, length)
 	a0 = b.getToomSlice(k, r, 2, length)
-	var v0, v1, v2, vm1, vinf, t1, t2, tm1, da1 *BigInteger
+	var v0, v1, v2, vm1, vinf, t1, t2, tm1, da1 *bigInteger
 
 	v0 = a0.squareRec(true)
 	da1 = a2.Add(a0)
@@ -631,7 +741,7 @@ func (b *BigInteger) squareToomCook3() *BigInteger {
 	return vinf.shiftLeft(ss).Add(t2).shiftLeft(ss).Add(t1).shiftLeft(ss).Add(tm1).shiftLeft(ss).Add(v0)
 }
 
-func (b *BigInteger) squareKaratsuba() *BigInteger {
+func (b *bigInteger) squareKaratsuba() *bigInteger {
 	half := types.Int(len(b.mag)+1) / 2
 
 	xl := b.getLower(half)
@@ -642,19 +752,19 @@ func (b *BigInteger) squareKaratsuba() *BigInteger {
 	return xhs.shiftLeft(half * 32).Add(xl.Add(xh).square().Subtract(xhs.Add(xls))).shiftLeft(half * 32).Add(xls)
 }
 
-func (b *BigInteger) getLower(n types.Int) *BigInteger {
+func (b *bigInteger) getLower(n types.Int) *bigInteger {
 	length := types.Int(len(b.mag))
 	if length <= n {
 		return b.Abs()
 	}
 
 	lowerInts := make([]types.Int, n)
-	Arraycopy(b.mag, length-n, lowerInts, 0, n)
+	tool.Arraycopy(b.mag, length-n, lowerInts, 0, n)
 
 	return newBigInteger(trustedStripLeadingZeroInts(lowerInts), 1)
 }
 
-func (b *BigInteger) getUpper(n types.Int) *BigInteger {
+func (b *bigInteger) getUpper(n types.Int) *bigInteger {
 	length := types.Int(len(b.mag))
 	if length <= n {
 		return ZERO
@@ -662,12 +772,12 @@ func (b *BigInteger) getUpper(n types.Int) *BigInteger {
 
 	upperLen := length - n
 	upperInts := make([]types.Int, upperLen)
-	Arraycopy(b.mag, 0, upperInts, 0, upperLen)
+	tool.Arraycopy(b.mag, 0, upperInts, 0, upperLen)
 
 	return newBigInteger(trustedStripLeadingZeroInts(upperInts), 1)
 }
 
-func (b *BigInteger) getToomSlice(lowerSize types.Int, upperSize types.Int, slice types.Int, fullsize types.Int) *BigInteger {
+func (b *bigInteger) getToomSlice(lowerSize types.Int, upperSize types.Int, slice types.Int, fullsize types.Int) *bigInteger {
 	var start, end, sliceSize, length, offset types.Int
 
 	length = types.Int(len(b.mag))
@@ -696,13 +806,13 @@ func (b *BigInteger) getToomSlice(lowerSize types.Int, upperSize types.Int, slic
 	}
 
 	intSlice := make([]types.Int, sliceSize)
-	Arraycopy(b.mag, start, intSlice, 0, sliceSize)
+	tool.Arraycopy(b.mag, start, intSlice, 0, sliceSize)
 
 	return newBigInteger(trustedStripLeadingZeroInts(intSlice), 1)
 
 }
 
-func (b *BigInteger) exactDivideBy3() *BigInteger {
+func (b *bigInteger) exactDivideBy3() *bigInteger {
 	length := types.Int(len(b.mag))
 	result := make([]types.Int, length)
 	var x, w, q, borrow types.Long
@@ -730,7 +840,7 @@ func (b *BigInteger) exactDivideBy3() *BigInteger {
 	return newBigInteger(result, b.signum)
 }
 
-func (b *BigInteger) multiplyRec(val *BigInteger, isRecursion bool) *BigInteger {
+func (b *bigInteger) multiplyRec(val *bigInteger, isRecursion bool) *bigInteger {
 	if val.signum == 0 || b.signum == 0 {
 		return ZERO
 	}
@@ -763,7 +873,7 @@ func (b *BigInteger) multiplyRec(val *BigInteger, isRecursion bool) *BigInteger 
 			return multiplyKaratsuba(b, val)
 		} else {
 			if !isRecursion {
-				if (bitLength(b.mag, types.Int(len(b.mag))) + bitLength(val.mag, types.Int(len(val.mag)))).ToLong() > types.Long(32)*(MAX_MAG_LENGTH).ToLong() {
+				if (bitLength(b.mag, types.Int(len(b.mag))) + bitLength(val.mag, types.Int(len(val.mag)))).ToLong() > types.Long(32)*(p_MAX_MAG_LENGTH).ToLong() {
 					panic("overflow")
 				}
 			}
@@ -774,7 +884,7 @@ func (b *BigInteger) multiplyRec(val *BigInteger, isRecursion bool) *BigInteger 
 
 }
 
-func (b *BigInteger) smallToString(radix types.Int) string {
+func (b *bigInteger) smallToString(radix types.Int) string {
 	if b.signum == 0 {
 		return "0"
 	}
@@ -814,8 +924,8 @@ func (b *BigInteger) smallToString(radix types.Int) string {
 	return buf.String()
 }
 
-func (b *BigInteger) divideAndRemainderKnuth(val *BigInteger) []*BigInteger {
-	result := make([]*BigInteger, 2)
+func (b *bigInteger) divideAndRemainderKnuth(val *bigInteger) []*bigInteger {
+	result := make([]*bigInteger, 2)
 	q := newMutableBigIntegerDefault()
 	a := newMutableBigIntegerArray(b.mag)
 	bb := newMutableBigIntegerArray(val.mag)
@@ -829,10 +939,10 @@ func (b *BigInteger) divideAndRemainderKnuth(val *BigInteger) []*BigInteger {
 	return result
 }
 
-func (b *BigInteger) divideAndRemainderBurnikelZiegler(val *BigInteger) []*BigInteger {
+func (b *bigInteger) divideAndRemainderBurnikelZiegler(val *bigInteger) []*bigInteger {
 	q := newMutableBigIntegerDefault()
 	r := newMutableBigIntegerByBigInteger(b).DivideAndRemainderBurnikelZiegler(newMutableBigIntegerByBigInteger(val), q)
-	var qBigInt, rBigInt *BigInteger
+	var qBigInt, rBigInt *bigInteger
 	if q.IsZero() {
 		qBigInt = ZERO
 	} else {
@@ -843,10 +953,63 @@ func (b *BigInteger) divideAndRemainderBurnikelZiegler(val *BigInteger) []*BigIn
 	} else {
 		rBigInt = r.toBigInteger(b.signum)
 	}
-	return []*BigInteger{qBigInt, rBigInt}
+	return []*bigInteger{qBigInt, rBigInt}
 }
 
-func (b *BigInteger) compareMagnitute(val *BigInteger) types.Int {
+func (b *bigInteger) compareMagnituteLong(val types.Long) types.Int {
+	if val != MIN_INT64 {
+		m1 := b.mag
+		length := types.Int(len(m1))
+		if length > 2 {
+			return 1
+		}
+		if val < 0 {
+			val = -val
+		}
+		highWord := val.ShiftR(32).ToInt()
+		if highWord == 0 {
+			if length < 1 {
+				return -1
+			}
+			if length > 1 {
+				return 1
+			}
+			a := m1[0]
+			bb := val.ToInt()
+			if a != bb {
+				if (a.ToLong() & p_LONG_MASK) < (bb.ToLong() & p_LONG_MASK) {
+					return -1
+				}
+				return 1
+			}
+			return 0
+		} else {
+			if length < 2 {
+				return -1
+			}
+			a := m1[0]
+			bb := highWord
+			if a != bb {
+				if (a.ToLong() & p_LONG_MASK) < (bb.ToLong() & p_LONG_MASK) {
+					return -1
+				}
+				return 1
+			}
+			a = m1[1]
+			bb = val.ToInt()
+			if a != bb {
+				if (a.ToLong() & p_LONG_MASK) < (bb.ToLong() & p_LONG_MASK) {
+					return -1
+				}
+				return 1
+			}
+			return 0
+		}
+	}
+	panic("illegal param")
+}
+
+func (b *bigInteger) compareMagnitute(val *bigInteger) types.Int {
 	m1 := b.mag
 	len1 := types.Int(len(m1))
 	m2 := val.mag
@@ -871,7 +1034,7 @@ func (b *BigInteger) compareMagnitute(val *BigInteger) types.Int {
 	return 0
 }
 
-func (b *BigInteger) divideKnuth(val *BigInteger) *BigInteger {
+func (b *bigInteger) divideKnuth(val *bigInteger) *bigInteger {
 	q := newMutableBigIntegerDefault()
 	a := newMutableBigIntegerArray(b.mag)
 	b2 := newMutableBigIntegerArray(val.mag)
@@ -879,11 +1042,11 @@ func (b *BigInteger) divideKnuth(val *BigInteger) *BigInteger {
 	return q.toBigInteger(b.signum * val.signum)
 }
 
-func (b *BigInteger) divideBurnikelZiegler(val *BigInteger) *BigInteger {
+func (b *bigInteger) divideBurnikelZiegler(val *bigInteger) *bigInteger {
 	return b.divideAndRemainderBurnikelZiegler(val)[0]
 }
 
-func (b *BigInteger) Subtract(val *BigInteger) *BigInteger {
+func (b *bigInteger) Subtract(val *bigInteger) *bigInteger {
 	if val.signum == 0 {
 		return b
 	}
@@ -911,12 +1074,12 @@ func (b *BigInteger) Subtract(val *BigInteger) *BigInteger {
 		return newBigInteger(resultMag, -1)
 	}
 }
-func (b *BigInteger) Multiply(val *BigInteger) *BigInteger {
+func (b *bigInteger) Multiply(val *bigInteger) *bigInteger {
 	return b.multiplyRec(val, false)
 }
 
-// LongValue if this BigInteger is too bigger to fit in a long, only the low-order 64 bits are returned.
-func (b *BigInteger) LongValue() types.Long {
+// LongValue if this bigInteger is too bigger to fit in a long, only the low-order 64 bits are returned.
+func (b *bigInteger) LongValue() types.Long {
 	result := types.Long(0)
 	for i := types.Int(1); i >= 0; i-- {
 		result = (result << 32) + (b.getInt(i).ToLong() & p_LONG_MASK)
@@ -924,7 +1087,7 @@ func (b *BigInteger) LongValue() types.Long {
 	return result
 }
 
-func (b *BigInteger) DivideAndRemainder(val *BigInteger) []*BigInteger {
+func (b *bigInteger) DivideAndRemainder(val *bigInteger) []*bigInteger {
 	if len(val.mag) < p_BURNIKEL_ZIEGLER_THRESHOLD || len(b.mag)-len(val.mag) < p_BURNIKEL_ZIEGLER_OFFSET {
 		return b.divideAndRemainderKnuth(val)
 	} else {
@@ -932,7 +1095,7 @@ func (b *BigInteger) DivideAndRemainder(val *BigInteger) []*BigInteger {
 	}
 }
 
-func (b *BigInteger) Divide(val *BigInteger) *BigInteger {
+func (b *bigInteger) Divide(val *bigInteger) *bigInteger {
 	if len(val.mag) < p_BURNIKEL_ZIEGLER_THRESHOLD ||
 		len(b.mag)-len(val.mag) < p_BURNIKEL_ZIEGLER_OFFSET {
 		return b.divideKnuth(val)
@@ -941,7 +1104,7 @@ func (b *BigInteger) Divide(val *BigInteger) *BigInteger {
 	}
 }
 
-func (b *BigInteger) Sqrt() *BigInteger {
+func (b *bigInteger) Sqrt() *bigInteger {
 	if b.signum < 0 {
 		panic(errors.New("negative BigIntager"))
 	}
@@ -949,17 +1112,17 @@ func (b *BigInteger) Sqrt() *BigInteger {
 	return newMutableBigIntegerArray(b.mag).sqrt().ToBigIntegerDefault()
 }
 
-// LongValueExact this BigInteger converted to a long. different from LongValue, this func will throw panic error
-func (b *BigInteger) LongValueExact() types.Long {
+// LongValueExact this bigInteger converted to a long. different from LongValue, this func will throw panic error
+func (b *bigInteger) LongValueExact() types.Long {
 	if len(b.mag) <= 2 && b.BitLength() <= 63 {
 		return b.LongValue()
 	} else {
-		panic(errors.New("BigInteger out of long range"))
+		panic(errors.New("bigInteger out of long range"))
 	}
 }
 
-func (b *BigInteger) checkRange() {
-	if types.Int(len(b.mag)) > MAX_MAG_LENGTH || types.Int(len(b.mag)) == MAX_MAG_LENGTH && b.mag[0] < 0 {
+func (b *bigInteger) checkRange() {
+	if types.Int(len(b.mag)) > p_MAX_MAG_LENGTH || types.Int(len(b.mag)) == p_MAX_MAG_LENGTH && b.mag[0] < 0 {
 		panic(errors.New("overflow"))
 	}
 }
@@ -968,13 +1131,13 @@ func bigLengthForInt(n types.Int) types.Int {
 	return 32 - NumberOfLeadingZeros(n)
 }
 
-func multiplyToomCook3(a *BigInteger, b *BigInteger) *BigInteger {
+func multiplyToomCook3(a *bigInteger, b *bigInteger) *bigInteger {
 	alen, blen := types.Int(len(a.mag)), types.Int(len(b.mag))
 	largest := types.Int(math.Max(float64(alen), float64(blen)))
 	k := (largest + 2) / 3
 	r := largest - 2*k
 
-	var a0, a1, a2, b0, b1, b2 *BigInteger
+	var a0, a1, a2, b0, b1, b2 *bigInteger
 	a2 = a.getToomSlice(k, r, 0, largest)
 	a1 = a.getToomSlice(k, r, 1, largest)
 	a0 = a.getToomSlice(k, r, 2, largest)
@@ -982,7 +1145,7 @@ func multiplyToomCook3(a *BigInteger, b *BigInteger) *BigInteger {
 	b1 = b.getToomSlice(k, r, 1, largest)
 	b0 = b.getToomSlice(k, r, 2, largest)
 
-	var v0, v1, v2, vm1, vinf, t1, t2, tm1, da1, db1 *BigInteger
+	var v0, v1, v2, vm1, vinf, t1, t2, tm1, da1, db1 *bigInteger
 	v0 = a0.multiplyRec(b0, true)
 	da1 = a2.Add(a0)
 	db1 = b2.Add(b0)
@@ -1012,7 +1175,7 @@ func multiplyToomCook3(a *BigInteger, b *BigInteger) *BigInteger {
 	}
 }
 
-func multiplyKaratsuba(x *BigInteger, y *BigInteger) *BigInteger {
+func multiplyKaratsuba(x *bigInteger, y *bigInteger) *bigInteger {
 	xlen, ylen := types.Int(len(x.mag)), types.Int(len(y.mag))
 
 	half := types.Int((math.Max(float64(xlen), float64(ylen)) + 1) / 2)
@@ -1090,7 +1253,7 @@ func multiplyToLenCheck(array []types.Int, length types.Int) {
 	}
 }
 
-func multiplyByInt(x []types.Int, y, sign types.Int) *BigInteger {
+func multiplyByInt(x []types.Int, y, sign types.Int) *bigInteger {
 	if bitCount(y) == 1 {
 		return newBigInteger(shiftLeft(x, NumberOfTrailingZeros(y)), sign)
 	}
@@ -1276,8 +1439,8 @@ func increment(val []types.Int) []types.Int {
 	return val
 }
 
-func newBigIntegerCharArray(val []uint8, sign, length types.Int) *BigInteger {
-	b := &BigInteger{}
+func newBigIntegerCharArray(val []uint8, sign, length types.Int) *bigInteger {
+	b := &bigInteger{}
 	var cursor, numDigits types.Int
 
 	for cursor < length && tool.Digit(val[cursor], 10) == 0 {
@@ -1319,13 +1482,13 @@ func newBigIntegerCharArray(val []uint8, sign, length types.Int) *BigInteger {
 		destructiveMulAdd(magnitude, intRadix[10], groupVal)
 	}
 	b.mag = trustedStripLeadingZeroInts(magnitude)
-	if types.Int(len(b.mag)) >= MAX_MAG_LENGTH {
+	if types.Int(len(b.mag)) >= p_MAX_MAG_LENGTH {
 		b.checkRange()
 	}
 	return b
 }
 
-func (b *BigInteger) DoubleValue() types.Double {
+func (b *bigInteger) DoubleValue() types.Double {
 	if b.signum == 0 {
 		return 0.0
 	}
@@ -1380,16 +1543,16 @@ func (b *BigInteger) DoubleValue() types.Double {
 	return types.DoubleFromBits(bits)
 }
 
-func (b *BigInteger) SqrtAndRemainder() []*BigInteger {
+func (b *bigInteger) SqrtAndRemainder() []*bigInteger {
 	s := b.Sqrt()
 	r := b.Subtract(s.square())
 	if r.CompareTo(ZERO) < 0 {
 		panic(errors.New("remainder value < 0"))
 	}
-	return []*BigInteger{s, r}
+	return []*bigInteger{s, r}
 }
 
-func (b *BigInteger) CompareTo(val *BigInteger) types.Int {
+func (b *bigInteger) CompareTo(val *bigInteger) types.Int {
 	if b.signum == val.signum {
 		switch b.signum {
 		case 1:
@@ -1437,7 +1600,7 @@ func NumberOfTrailingZeros(i types.Int) types.Int {
 }
 
 // BigIntegerValueOf, if |val| <= 16, return posConst cache
-func BigIntegerValueOf(val types.Long) *BigInteger {
+func BigIntegerValueOf(val types.Long) *bigInteger {
 	if val == 0 {
 		return ZERO
 	}
@@ -1449,8 +1612,8 @@ func BigIntegerValueOf(val types.Long) *BigInteger {
 	return NewBigIntegerLong(val)
 }
 
-func NewBigIntegerLong(val types.Long) *BigInteger {
-	bigInteger := &BigInteger{}
+func NewBigIntegerLong(val types.Long) *bigInteger {
+	bigInteger := &bigInteger{}
 	if val < 0 {
 		val = -val
 		bigInteger.signum = -1 // set signum as -1, value is negative
@@ -1467,12 +1630,12 @@ func NewBigIntegerLong(val types.Long) *BigInteger {
 	return bigInteger
 }
 
-func NewBigIntegerString(val string) *BigInteger {
+func NewBigIntegerString(val string) *bigInteger {
 	return NewBigIntegerStringRadix(val, 10)
 }
 
-func NewBigIntegerStringRadix(val string, radix types.Int) *BigInteger {
-	b := &BigInteger{}
+func NewBigIntegerStringRadix(val string, radix types.Int) *bigInteger {
+	b := &bigInteger{}
 	var cursor, numDigits types.Int
 	length := types.Int(len(val))
 
@@ -1480,7 +1643,7 @@ func NewBigIntegerStringRadix(val string, radix types.Int) *BigInteger {
 		panic(errors.New("Radix out of range"))
 	}
 	if length == 0 {
-		panic(errors.New("Zero length BigInteger"))
+		panic(errors.New("Zero length bigInteger"))
 	}
 
 	sign := 1
@@ -1499,7 +1662,7 @@ func NewBigIntegerStringRadix(val string, radix types.Int) *BigInteger {
 		cursor = 1
 	}
 	if cursor == length {
-		panic(errors.New("Zero length BigInteger"))
+		panic(errors.New("Zero length bigInteger"))
 	}
 
 	for cursor < length && tool.Digit(val[cursor], uint8(radix)) == 0 {
@@ -1528,7 +1691,10 @@ func NewBigIntegerStringRadix(val string, radix types.Int) *BigInteger {
 	}
 	group := val[cursor : cursor+firstGroupLen]
 	cursor += firstGroupLen
-	res, _ := strconv.ParseInt(group, int(radix), 32)
+	res, err := strconv.ParseInt(group, int(radix), 32)
+	if err != nil {
+		panic(fmt.Sprintf("Input string error: %+v", err))
+	}
 	magnitude[numWords-1] = types.Int(res)
 	if magnitude[numWords-1] < 0 {
 		panic(errors.New("Illegal digit"))
@@ -1547,13 +1713,13 @@ func NewBigIntegerStringRadix(val string, radix types.Int) *BigInteger {
 		destructiveMulAdd(magnitude, superRadix, groupVal)
 	}
 	b.mag = trustedStripLeadingZeroInts(magnitude)
-	if types.Int(len(b.mag)) >= MAX_MAG_LENGTH {
+	if types.Int(len(b.mag)) >= p_MAX_MAG_LENGTH {
 		b.checkRange()
 	}
 	return b
 }
 
-func (b *BigInteger) Add(val *BigInteger) *BigInteger {
+func (b *bigInteger) Add(val *bigInteger) *bigInteger {
 	if val.signum == 0 {
 		return b
 	}
@@ -1582,11 +1748,11 @@ func (b *BigInteger) Add(val *BigInteger) *BigInteger {
 	}
 }
 
-func (b *BigInteger) String() string {
+func (b *bigInteger) String() string {
 	return b.StringRadix(10)
 }
 
-func (b *BigInteger) StringRadix(radix types.Int) string {
+func (b *bigInteger) StringRadix(radix types.Int) string {
 	if b.signum == 0 {
 		return "0"
 	}
@@ -1608,14 +1774,8 @@ func (b *BigInteger) StringRadix(radix types.Int) string {
 	return buf.String()
 }
 
-func Arraycopy(src []types.Int, srcPos types.Int, dest []types.Int, destPos, length types.Int) {
-	for i := types.Int(0); i < length; i++ {
-		dest[destPos+i] = src[srcPos+i]
-	}
-}
-
-// BitLength Returns the number of bits in the minimal two's-complement representation of this BigInteger, excluding a sign bit.
-func (b *BigInteger) BitLength() types.Int {
+// BitLength Returns the number of bits in the minimal two's-complement representation of this bigInteger, excluding a sign bit.
+func (b *bigInteger) BitLength() types.Int {
 	n := b.bitLengthPlusOne - 1
 	if n == -1 {
 		var m []types.Int
@@ -1680,10 +1840,91 @@ func NumberOfLeadingZeros(i types.Int) types.Int {
 	return n - i.ShiftR(1)
 }
 
-func (b *BigInteger) Abs() *BigInteger {
+func (b *bigInteger) Abs() *bigInteger {
 	if b.signum >= 0 {
 		return b
 	} else {
 		return b.negate()
 	}
+}
+
+func (b *bigInteger) add(val types.Long) *bigInteger {
+	if val == 0 {
+		return b
+	}
+	if b.signum == 0 {
+		return BigIntegerValueOf(val)
+	}
+	if (val>>63)|(val.ShiftR(63)) == b.signum.ToLong() {
+		return newBigInteger(add_(b.mag, types.Long(math.Abs(float64(val)))), b.signum)
+	}
+	cmp := b.compareMagnituteLong(val)
+	if cmp == 0 {
+		return ZERO
+	}
+	var resultMag []types.Int
+	if cmp > 0 {
+		resultMag = subtract(b.mag, val.Abs())
+	} else {
+		resultMag = subtract2(val.Abs(), b.mag)
+	}
+	resultMag = trustedStripLeadingZeroInts(resultMag)
+	if cmp == b.signum {
+		return newBigInteger(resultMag, 1)
+	} else {
+		return newBigInteger(resultMag, -1)
+	}
+}
+
+func (b *bigInteger) multiplyLong(v types.Long) *bigInteger {
+	if v == 0 || b.signum == 0 {
+		return ZERO
+	}
+	if v == MIN_INT64 {
+		return b.Multiply(BigIntegerValueOf(v))
+	}
+	var rsign types.Int
+	if v > 0 {
+		rsign = b.signum
+	} else {
+		rsign = -b.signum
+	}
+	if v < 0 {
+		v = -v
+	}
+	dh := v.ShiftR(32)
+	dl := v & p_LONG_MASK
+
+	xlen := types.Int(len(b.mag))
+	value := b.mag
+	var rmag []types.Int
+	if dh == 0 {
+		rmag = make([]types.Int, xlen+1)
+	} else {
+		rmag = make([]types.Int, xlen+2)
+	}
+	var carry types.Long
+	rstart := types.Int(len(rmag)) - 1
+	for i := xlen - 1; i >= 0; i-- {
+		product := (value[i].ToLong()&p_LONG_MASK)*dl + carry
+		rmag[rstart] = product.ToInt()
+		rstart--
+		carry = product.ShiftR(32)
+	}
+	rmag[rstart] = carry.ToInt()
+	if dh != 0 {
+		carry = 0
+		rstart = types.Int(len(rmag)) - 2
+		for i := xlen - 1; i >= 0; i-- {
+			product := (value[i].ToLong()&p_LONG_MASK)*dh + (rmag[rstart].ToLong() & p_LONG_MASK) + carry
+			rmag[rstart] = product.ToInt()
+			rstart--
+			carry = product.ShiftR(32)
+		}
+		rmag[0] = carry.ToInt()
+	}
+	if carry == 0 {
+		rmag = tool.CopyRange(rmag, 1, types.Int(len(rmag)))
+	}
+	return newBigInteger(rmag, rsign)
 }

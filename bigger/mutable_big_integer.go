@@ -33,7 +33,7 @@ func (m *mutableBigInteger) Divide(b *mutableBigInteger, quotient *mutableBigInt
 
 func (m *mutableBigInteger) divide(v types.Long, quotient *mutableBigInteger) types.Long {
 	if v == 0 {
-		panic(errors.New("BigInteger divide by zero"))
+		panic(errors.New("bigInteger divide by zero"))
 	}
 	if m.intLen == 0 {
 		quotient.intLen = 0
@@ -65,7 +65,7 @@ func (m *mutableBigInteger) divideRemainder(b *mutableBigInteger, quotient *muta
 
 func (m *mutableBigInteger) divideKnuth(b *mutableBigInteger, quotient *mutableBigInteger, needRemainder bool) *mutableBigInteger {
 	if b.intLen == 0 {
-		panic(errors.New("BigInteger divide by zero"))
+		panic(errors.New("bigInteger divide by zero"))
 	}
 
 	if m.intLen == 0 {
@@ -312,7 +312,7 @@ func (m *mutableBigInteger) divideMagnitude(div *mutableBigInteger, quotient *mu
 	} else {
 		divisor = tool.CopyRange(div.value, m.offset, m.offset+m.intLen)
 		rem = newMutableBigIntegerArray(make([]types.Int, m.intLen+1))
-		Arraycopy(m.value, m.offset, rem.value, 1, m.intLen)
+		tool.Arraycopy(m.value, m.offset, rem.value, 1, m.intLen)
 		rem.intLen = m.intLen
 		rem.offset = 1
 	}
@@ -543,14 +543,14 @@ func (m *mutableBigInteger) normalize() {
 	}
 }
 
-func (m *mutableBigInteger) toBigInteger(sign types.Int) *BigInteger {
+func (m *mutableBigInteger) toBigInteger(sign types.Int) *bigInteger {
 	if m.intLen == 0 || sign == 0 {
 		return ZERO
 	}
 	return newBigInteger(m.getMagnitudeArray(), sign)
 }
 
-func (m *mutableBigInteger) ToBigIntegerDefault() *BigInteger {
+func (m *mutableBigInteger) ToBigIntegerDefault() *bigInteger {
 	m.normalize()
 	if m.IsZero() {
 		return m.toBigInteger(0)
@@ -772,7 +772,7 @@ func (m *mutableBigInteger) divide3n2n(b *mutableBigInteger, quotient *mutableBi
 	return r
 }
 
-func (m *mutableBigInteger) getLower(n types.Int) *BigInteger {
+func (m *mutableBigInteger) getLower(n types.Int) *bigInteger {
 	if m.IsZero() {
 		return ZERO
 	} else if m.intLen < n {
@@ -1161,14 +1161,14 @@ func (m *mutableBigInteger) copyValue(src *mutableBigInteger) {
 	if types.Int(len(m.value)) < length {
 		m.value = make([]types.Int, length)
 	}
-	Arraycopy(src.value, src.offset, m.value, 0, length)
+	tool.Arraycopy(src.value, src.offset, m.value, 0, length)
 	m.intLen = length
 	m.offset = 0
 }
 
 func (m *mutableBigInteger) divideLongMagnitude(ldivisor types.Long, quotient *mutableBigInteger) *mutableBigInteger {
 	rem := newMutableBigIntegerArray(make([]types.Int, m.intLen+1))
-	Arraycopy(m.value, m.offset, rem.value, 1, m.intLen)
+	tool.Arraycopy(m.value, m.offset, rem.value, 1, m.intLen)
 	rem.intLen = m.intLen
 	rem.offset = 1
 	nlen := rem.intLen
@@ -1427,7 +1427,7 @@ func newMutableBigIntegerObject(val *mutableBigInteger) *mutableBigInteger {
 	}
 }
 
-func newMutableBigIntegerByBigInteger(b *BigInteger) *mutableBigInteger {
+func newMutableBigIntegerByBigInteger(b *bigInteger) *mutableBigInteger {
 	return &mutableBigInteger{
 		intLen: types.Int(len(b.mag)),
 		value:  tool.Copy(b.mag, types.Int(len(b.mag))),
