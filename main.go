@@ -10,8 +10,9 @@ import (
  @date: 2021/8/12 18:10:43
 **/
 func main() {
-	a := bigger.NewBigIntegerString("5.112")
-	b := bigger.NewBigIntegerString("-2.12")
+	a := bigger.NewBigDecimalString("0.7")
+	b := bigger.NewBigDecimalString("0.2")
 	res := a.Add(b)
+	res = res.SetScale(30, bigger.ROUND_HALF_UP)
 	fmt.Println(res.String())
 }

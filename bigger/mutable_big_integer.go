@@ -1365,6 +1365,52 @@ func (m *mutableBigInteger) compareHalf(b *mutableBigInteger) types.Int {
 	}
 }
 
+func (m *mutableBigInteger) toBitDecimal(sign types.Int, scale types.Int) *bigDecimal {
+	if m.intLen == 0 || sign == 0 {
+		return zeroValueOf(scale)
+	}
+	mag := m.getMagnitudeArray()
+	length := types.Int(len(mag))
+	d := mag[0]
+	if length > 2 || (d < 0 && length == 2) {
+		return newBigDecimalByBigInteger(newBigInteger(mag, sign), MIN_INT64, scale, 0)
+	}
+	var v types.Long
+	if length == 2 {
+		v = (mag[1].ToLong() & p_LONG_MASK) | (d.ToLong()&p_LONG_MASK)<<32
+	} else {
+		v = d.ToLong() & p_LONG_MASK
+	}
+	if sign == -1 {
+		return valueOf(-v, scale)
+	} else {
+		return valueOf(v, scale)
+	}
+}
+
+func (m *mutableBigInteger) toCompactValue(sign types.Int) types.Long {
+	if m.intLen == 0 || sign == 0 {
+		return 0
+	}
+	mag := m.getMagnitudeArray()
+	length := types.Int(len(mag))
+	d := mag[0]
+	if length > 2 || (d < 0 && length == 2) {
+		return MIN_INT64
+	}
+	var v types.Long
+	if length == 2 {
+		v = (mag[1].ToLong() & p_LONG_MASK) | (d.ToLong() & p_LONG_MASK << 32)
+	} else {
+		v = d.ToLong() & p_LONG_MASK
+	}
+	if sign == -1 {
+		return -v
+	} else {
+		return v
+	}
+}
+
 func unsignedLongCompare(one, two types.Long) bool {
 	return (one + MIN_INT64) > (two + MIN_INT64)
 }

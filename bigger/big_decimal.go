@@ -35,44 +35,15 @@ const (
 	ROUND_DOWN
 	ROUND_CEILING
 	ROUND_FLOOR
-	ROUDINGMODE_HALF_UP
+	ROUND_HALF_UP
 	ROUND_HALF_DOWN
 	ROUND_HALF_EVEN
 	ROUND_UNNECESSARY
 )
 
 var (
-	p_ZERO_SCALED_BY = []*bigDecimal{
-		p_ZERO_THROUGH_TEN[0],
-		newBigDecimalByBigInteger(ZERO, 0, 1, 1),
-		newBigDecimalByBigInteger(ZERO, 0, 2, 1),
-		newBigDecimalByBigInteger(ZERO, 0, 3, 1),
-		newBigDecimalByBigInteger(ZERO, 0, 4, 1),
-		newBigDecimalByBigInteger(ZERO, 0, 5, 1),
-		newBigDecimalByBigInteger(ZERO, 0, 6, 1),
-		newBigDecimalByBigInteger(ZERO, 0, 7, 1),
-		newBigDecimalByBigInteger(ZERO, 0, 8, 1),
-		newBigDecimalByBigInteger(ZERO, 0, 9, 1),
-		newBigDecimalByBigInteger(ZERO, 0, 10, 1),
-		newBigDecimalByBigInteger(ZERO, 0, 11, 1),
-		newBigDecimalByBigInteger(ZERO, 0, 12, 1),
-		newBigDecimalByBigInteger(ZERO, 0, 13, 1),
-		newBigDecimalByBigInteger(ZERO, 0, 14, 1),
-		newBigDecimalByBigInteger(ZERO, 0, 15, 1),
-	}
-	p_ZERO_THROUGH_TEN = []*bigDecimal{
-		newBigDecimalByBigInteger(ZERO, 0, 0, 1),
-		newBigDecimalByBigInteger(ONE, 1, 0, 1),
-		newBigDecimalByBigInteger(TWO, 2, 0, 1),
-		newBigDecimalByBigInteger(BigIntegerValueOf(3), 3, 0, 1),
-		newBigDecimalByBigInteger(BigIntegerValueOf(4), 4, 0, 1),
-		newBigDecimalByBigInteger(BigIntegerValueOf(5), 5, 0, 1),
-		newBigDecimalByBigInteger(BigIntegerValueOf(6), 6, 0, 1),
-		newBigDecimalByBigInteger(BigIntegerValueOf(7), 7, 0, 1),
-		newBigDecimalByBigInteger(BigIntegerValueOf(8), 8, 0, 1),
-		newBigDecimalByBigInteger(BigIntegerValueOf(9), 9, 0, 1),
-		newBigDecimalByBigInteger(TEN, 10, 0, 1),
-	}
+	p_ZERO_SCALED_BY   []*bigDecimal
+	p_ZERO_THROUGH_TEN []*bigDecimal
 	p_THRESHOLDS_TABLE = []types.Long{
 		MAX_INT64,                       // 0
 		MAX_INT64 / 10,                  // 1
@@ -115,6 +86,42 @@ var (
 		100000000000000000,  // 17 / 10^17
 		1000000000000000000, // 18 / 10^18
 	}
+	p_BIG_TEN_POWERS_TABLE []*bigInteger
+)
+
+func init() {
+	Init()
+	p_ZERO_THROUGH_TEN = []*bigDecimal{
+		newBigDecimalByBigInteger(ZERO, 0, 0, 1),
+		newBigDecimalByBigInteger(ONE, 1, 0, 1),
+		newBigDecimalByBigInteger(TWO, 2, 0, 1),
+		newBigDecimalByBigInteger(BigIntegerValueOf(3), 3, 0, 1),
+		newBigDecimalByBigInteger(BigIntegerValueOf(4), 4, 0, 1),
+		newBigDecimalByBigInteger(BigIntegerValueOf(5), 5, 0, 1),
+		newBigDecimalByBigInteger(BigIntegerValueOf(6), 6, 0, 1),
+		newBigDecimalByBigInteger(BigIntegerValueOf(7), 7, 0, 1),
+		newBigDecimalByBigInteger(BigIntegerValueOf(8), 8, 0, 1),
+		newBigDecimalByBigInteger(BigIntegerValueOf(9), 9, 0, 1),
+		newBigDecimalByBigInteger(TEN, 10, 0, 1),
+	}
+	p_ZERO_SCALED_BY = []*bigDecimal{
+		p_ZERO_THROUGH_TEN[0],
+		newBigDecimalByBigInteger(ZERO, 0, 1, 1),
+		newBigDecimalByBigInteger(ZERO, 0, 2, 1),
+		newBigDecimalByBigInteger(ZERO, 0, 3, 1),
+		newBigDecimalByBigInteger(ZERO, 0, 4, 1),
+		newBigDecimalByBigInteger(ZERO, 0, 5, 1),
+		newBigDecimalByBigInteger(ZERO, 0, 6, 1),
+		newBigDecimalByBigInteger(ZERO, 0, 7, 1),
+		newBigDecimalByBigInteger(ZERO, 0, 8, 1),
+		newBigDecimalByBigInteger(ZERO, 0, 9, 1),
+		newBigDecimalByBigInteger(ZERO, 0, 10, 1),
+		newBigDecimalByBigInteger(ZERO, 0, 11, 1),
+		newBigDecimalByBigInteger(ZERO, 0, 12, 1),
+		newBigDecimalByBigInteger(ZERO, 0, 13, 1),
+		newBigDecimalByBigInteger(ZERO, 0, 14, 1),
+		newBigDecimalByBigInteger(ZERO, 0, 15, 1),
+	}
 	p_BIG_TEN_POWERS_TABLE = []*bigInteger{
 		ONE,
 		BigIntegerValueOf(10),
@@ -136,7 +143,7 @@ var (
 		BigIntegerValueOf(100000000000000000),
 		BigIntegerValueOf(1000000000000000000),
 	}
-)
+}
 
 func newBigDecimalByBigInteger(intVal *bigInteger, val types.Long, scale, prec types.Int) *bigDecimal {
 	return &bigDecimal{
@@ -162,7 +169,7 @@ func NewBigDecimalString(val string) *bigDecimal {
 	var offset, length, prec, scl types.Int
 	var rs types.Long
 	var rb *bigInteger
-	var mc = &mathContext{roundingMode: ROUDINGMODE_HALF_UP}
+	var mc = &mathContext{roundingMode: ROUND_HALF_UP}
 	length = types.Int(len(val))
 
 	isneg := false // whether positive
@@ -425,7 +432,7 @@ func expandBigIntegerTenPowers(n types.Int) *bigInteger {
 		for newLen <= n {
 			newLen <<= 1
 		}
-		temp := make([]*bigInteger, len(pows))
+		temp := make([]*bigInteger, newLen)
 		copy(temp, pows)
 		pows = temp
 		for i := curLen; i < newLen; i++ {
@@ -560,7 +567,7 @@ func commonNeedIncrement(roundingMode RoundingMode, qsign, cmpFracHalf types.Int
 	case ROUND_FLOOR:
 		return qsign < 0
 	default:
-		if roundingMode >= ROUDINGMODE_HALF_UP && roundingMode <= ROUND_HALF_EVEN {
+		if roundingMode >= ROUND_HALF_UP && roundingMode <= ROUND_HALF_EVEN {
 			if cmpFracHalf < 0 {
 				return false
 			} else if cmpFracHalf > 0 {
@@ -570,7 +577,7 @@ func commonNeedIncrement(roundingMode RoundingMode, qsign, cmpFracHalf types.Int
 					switch roundingMode {
 					case ROUND_HALF_DOWN:
 						return false
-					case ROUDINGMODE_HALF_UP:
+					case ROUND_HALF_UP:
 						return true
 					case ROUND_HALF_EVEN:
 						return addQuot
@@ -787,7 +794,7 @@ func (b *bigDecimal) layoutChars(sci bool) string {
 
 func (b *bigDecimal) signum() types.Int {
 	if b.intCompact != MIN_INT64 {
-		return ((b.intCompact >> 63) | -b.intCompact.ShiftR(63)).ToInt()
+		return ((b.intCompact >> 63) | (-b.intCompact).ShiftR(63)).ToInt()
 	} else {
 		return b.intVal.signum
 	}
@@ -835,6 +842,221 @@ func (b *bigDecimal) add(xs types.Long, scale1 types.Int, ys types.Long, scale2 
 	}
 }
 
+func (b *bigDecimal) SetScale(newScale types.Int, roundingMode RoundingMode) *bigDecimal {
+	if roundingMode < ROUND_UP || roundingMode > ROUND_UNNECESSARY {
+		panic(errors.New("Invalid rounding mode"))
+	}
+
+	oldScale := b.scale
+	if newScale == oldScale {
+		return b
+	}
+	if b.signum() == 0 {
+		return zeroValueOf(newScale)
+	}
+	if b.intCompact != MIN_INT64 {
+		rs := b.intCompact
+		if newScale > oldScale {
+			raise := b.checkScale(newScale.ToLong() - oldScale.ToLong())
+			rs = longMultiplPowerTen(rs, raise)
+			if rs != MIN_INT64 {
+				return valueOf(rs, newScale)
+			}
+			rb := b.bigMultiplyPowerTen(raise)
+			if b.precision > 0 {
+				return newBigDecimalByBigInteger(rb, MIN_INT64, newScale, b.precision+raise)
+			} else {
+				return newBigDecimalByBigInteger(rb, MIN_INT64, newScale, 0)
+			}
+		} else {
+			drop := b.checkScale(oldScale.ToLong() - newScale.ToLong())
+			if drop < types.Int(len(p_LONG_TEN_POWERS_TABLE)) {
+				return divideAndRound5(rs, p_LONG_TEN_POWERS_TABLE[drop], newScale, roundingMode, newScale)
+			} else {
+				return divideAndRoundByBigInteger5(b.inflated(), bigTenToThe(drop), newScale, roundingMode, newScale)
+			}
+		}
+	} else {
+		if newScale > oldScale {
+			raise := b.checkScale(newScale.ToLong() - oldScale.ToLong())
+			rb := bigMultiplyPowerTenByBigInteger(b.intVal, raise)
+			if b.precision > 0 {
+				return newBigDecimalByBigInteger(rb, MIN_INT64, newScale, b.precision+raise)
+			} else {
+				return newBigDecimalByBigInteger(rb, MIN_INT64, newScale, 0)
+			}
+		} else {
+			drop := b.checkScale(oldScale.ToLong() - newScale.ToLong())
+			if drop < types.Int(len(p_LONG_TEN_POWERS_TABLE)) {
+				return divideAndRoundHalfByBigInteger5(b.intVal, p_LONG_TEN_POWERS_TABLE[drop], newScale, roundingMode, newScale)
+			} else {
+				return divideAndRoundByBigInteger5(b.intVal, bigTenToThe(drop), newScale, roundingMode, newScale)
+			}
+		}
+	}
+}
+
+func divideAndRoundHalfByBigInteger5(bdividend *bigInteger, ldivisor types.Long, scale types.Int, roundingMode RoundingMode, preferredScale types.Int) *bigDecimal {
+	mdividend := newMutableBigIntegerArray(bdividend.mag)
+	mq := newMutableBigIntegerDefault()
+	r := mdividend.divide(ldivisor, mq)
+	isRemainderZero := r == 0
+
+	var qsign types.Int
+	if ldivisor < 0 {
+		qsign = -bdividend.signum
+	} else {
+		qsign = bdividend.signum
+	}
+	if !isRemainderZero {
+		if needIncrementByMutableBigInteger(ldivisor, roundingMode, qsign, mq, r) {
+			mq.add(mutable_one)
+		}
+		return mq.toBitDecimal(qsign, scale)
+	} else {
+		if preferredScale != scale {
+			compactVal := mq.toCompactValue(qsign)
+			if compactVal != MIN_INT64 {
+				return createAndStripZerosToMatchScale(compactVal, scale, preferredScale)
+			}
+			intVal := mq.toBigInteger(qsign)
+			return createAndStripZerosToMatchScaleByBigInteger(intVal, scale, preferredScale)
+		} else {
+			return mq.toBitDecimal(qsign, scale)
+		}
+	}
+}
+
+func needIncrementByMutableBigInteger(ldivisor types.Long, roundingMode RoundingMode, qsign types.Int, mq *mutableBigInteger, r types.Long) bool {
+	var cmpFracHalf types.Int
+	if r <= MIN_INT64/2 || r > MAX_INT64/2 {
+		cmpFracHalf = 1
+	} else {
+		cmpFracHalf = longCompareMagnitude(2*r, ldivisor)
+	}
+	return commonNeedIncrement(roundingMode, qsign, cmpFracHalf, mq.isOdd())
+}
+
+func bigMultiplyPowerTenByBigInteger(value *bigInteger, n types.Int) *bigInteger {
+	if n <= 0 {
+		return value
+	}
+	if n < types.Int(len(p_LONG_TEN_POWERS_TABLE)) {
+		return value.multiplyLong(p_LONG_TEN_POWERS_TABLE[n])
+	}
+	return value.Multiply(bigTenToThe(n))
+}
+
+func divideAndRoundByBigInteger5(bdividend *bigInteger, bdivisor *bigInteger, scale types.Int, roundingMode RoundingMode, preferredScale types.Int) *bigDecimal {
+	var isRemainderZero bool
+	var qsign types.Int
+	mdividend := newMutableBigIntegerArray(bdividend.mag)
+	mq := newMutableBigIntegerDefault()
+	mdivisor := newMutableBigIntegerArray(bdivisor.mag)
+	mr := mdividend.Divide(mdivisor, mq)
+	isRemainderZero = mr.IsZero()
+	if bdividend.signum != bdivisor.signum {
+		qsign = -1
+	} else {
+		qsign = 1
+	}
+	if !isRemainderZero {
+		if needIncrementMutableBigInteger2(mdivisor, roundingMode, qsign, mq, mr) {
+			mq.add(mutable_one)
+		}
+		return mq.toBitDecimal(qsign, scale)
+	} else {
+		if preferredScale != scale {
+			compactVal := mq.toCompactValue(qsign)
+			if compactVal != MIN_INT64 {
+				return createAndStripZerosToMatchScale(compactVal, scale, preferredScale)
+			}
+			intVal := mq.toBigInteger(qsign)
+			return createAndStripZerosToMatchScaleByBigInteger(intVal, scale, preferredScale)
+		} else {
+			return mq.toBitDecimal(qsign, scale)
+		}
+	}
+}
+
+func divideAndRound5(ldividend types.Long, ldivisor types.Long, scale types.Int, roundingMode RoundingMode, preferredScale types.Int) *bigDecimal {
+	var qsign types.Int
+	q := ldividend / ldivisor
+	if roundingMode == ROUND_DOWN && scale == preferredScale {
+		return valueOf(q, scale)
+	}
+	r := ldividend % ldivisor
+	if (ldividend < 0) == (ldivisor < 0) {
+		qsign = 1
+	} else {
+		qsign = -1
+	}
+	if r != 0 {
+		increment := needIncrement(ldivisor, roundingMode, qsign, q, r)
+		if increment {
+			return valueOf(q+qsign.ToLong(), scale)
+		} else {
+			return valueOf(q, scale)
+		}
+	} else {
+		if preferredScale != scale {
+			return createAndStripZerosToMatchScale(q, scale, preferredScale)
+		} else {
+			return valueOf(q, scale)
+		}
+	}
+}
+
+func createAndStripZerosToMatchScaleByBigInteger(intVal *bigInteger, scale types.Int, preferredScale types.Int) *bigDecimal {
+	var qr []*bigInteger
+	for intVal.compareMagnitute(TEN) >= 0 && scale > preferredScale {
+		if intVal.testBit(0) {
+			break
+		}
+		qr = intVal.DivideAndRemainder(TEN)
+		if qr[1].signum != 0 {
+			break
+		}
+		intVal = qr[0]
+		scale = checkScaleByBigInteger(intVal, scale.ToLong()-1)
+	}
+	return valueOf3(intVal, scale, 0)
+}
+
+func checkScaleByBigInteger(intVal *bigInteger, val types.Long) types.Int {
+	asInt := val.ToInt()
+	if asInt.ToLong() != val {
+		if val > MAX_INT32.ToLong() {
+			asInt = MAX_INT32
+		} else {
+			asInt = MIN_INT32
+		}
+		if intVal.signum != 0 {
+			if asInt > 0 {
+				panic(errors.New("Underflow"))
+			} else {
+				panic(errors.New("Overflow"))
+			}
+		}
+	}
+	return asInt
+}
+
+func createAndStripZerosToMatchScale(compactVal types.Long, scale types.Int, preferredScale types.Int) *bigDecimal {
+	for compactVal.Abs() >= 10 && scale > preferredScale {
+		if (compactVal & 1) != 0 {
+			break
+		}
+		r := compactVal % 10
+		if r != 0 {
+			break
+		}
+		compactVal /= 10
+		scale = checkScale(compactVal, scale.ToLong()-1)
+	}
+	return valueOf(compactVal, scale)
+}
+
 func bigMultiplyPowerTen(value types.Long, n types.Int) *bigInteger {
 	if n <= 0 {
 		return BigIntegerValueOf(value)
@@ -858,6 +1080,45 @@ func longMultiplPowerTen(val types.Long, n types.Int) types.Long {
 		}
 	}
 	return MIN_INT64
+}
+
+func (b *bigDecimal) checkScale(val types.Long) types.Int {
+	asInt := val.ToInt()
+	if asInt.ToLong() != val {
+		if val > MAX_INT32.ToLong() {
+			asInt = MAX_INT32
+		} else {
+			asInt = MIN_INT32
+		}
+		big := b.intVal
+		if b.intCompact != 0 && (big == nil || big.signum != 0) {
+			if asInt > 0 {
+				panic(errors.New("Underflow"))
+			} else {
+				panic(errors.New("Overflow"))
+			}
+		}
+	}
+	return asInt
+}
+
+func (b *bigDecimal) bigMultiplyPowerTen(n types.Int) *bigInteger {
+	if n <= 0 {
+		return b.inflated()
+	}
+
+	if b.intCompact != MIN_INT64 {
+		return bigTenToThe(n).multiplyLong(b.intCompact)
+	} else {
+		return b.intVal.Multiply(bigTenToThe(n))
+	}
+}
+
+func (b *bigDecimal) inflated() *bigInteger {
+	if b.intVal == nil {
+		return BigIntegerValueOf(b.intCompact)
+	}
+	return b.intVal
 }
 
 func checkScale(intCompact types.Long, val types.Long) types.Int {

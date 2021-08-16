@@ -9,6 +9,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 /**
@@ -33,9 +34,7 @@ const (
 
 var (
 	ZERO                = newBigInteger([]types.Int{0}, 0)
-	ONE                 = BigIntegerValueOf(1)
-	TWO                 = BigIntegerValueOf(2)
-	TEN                 = BigIntegerValueOf(10)
+	ONE, TWO, TEN       *bigInteger
 	NEGATIVE_ONE        = BigIntegerValueOf(-1)
 	p_LOG_TWO           = types.Double(math.Log(2.0))
 	p_LONG_MASK         = types.Long(0xffffffff)
@@ -94,24 +93,33 @@ type bigInteger struct {
 }
 
 func init() {
-	// cache
-	for i := types.Int(1); i <= pMAX_CONSTANT; i++ {
-		posConst[i] = &bigInteger{
-			signum: 1,
-			mag:    []types.Int{i},
-		}
-		negConst[i] = &bigInteger{
-			signum: -1,
-			mag:    []types.Int{i},
-		}
-	}
+	Init()
+}
 
-	for i := 2; i <= 32; i++ {
-		powerCache[i] = []*bigInteger{
-			BigIntegerValueOf(types.Long(i)),
+var once sync.Once
+
+func Init() {
+	once.Do(func() {
+		for i := types.Int(1); i <= pMAX_CONSTANT; i++ {
+			posConst[i] = &bigInteger{
+				signum: 1,
+				mag:    []types.Int{i},
+			}
+			negConst[i] = &bigInteger{
+				signum: -1,
+				mag:    []types.Int{i},
+			}
 		}
-		logCache[i] = types.Double(math.Log(float64(i)))
-	}
+		for i := 2; i <= 32; i++ {
+			powerCache[i] = []*bigInteger{
+				BigIntegerValueOf(types.Long(i)),
+			}
+			logCache[i] = types.Double(math.Log(float64(i)))
+		}
+		ONE = BigIntegerValueOf(1)
+		TWO = BigIntegerValueOf(2)
+		TEN = BigIntegerValueOf(10)
+	})
 }
 
 func destructiveMulAdd(x []types.Int, y, z types.Int) {
@@ -229,14 +237,14 @@ func subtract_(big, little []types.Int) []types.Int {
 }
 
 func newBigInteger(magnitude []types.Int, signum types.Int) *bigInteger {
-	bigInteger := &bigInteger{}
+	b := &bigInteger{}
 	if len(magnitude) == 0 {
-		bigInteger.signum = 0
+		b.signum = 0
 	} else {
-		bigInteger.signum = signum
+		b.signum = signum
 	}
-	bigInteger.mag = magnitude
-	return bigInteger
+	b.mag = magnitude
+	return b
 }
 
 func bitCount(i types.Int) types.Int {
@@ -1927,4 +1935,11 @@ func (b *bigInteger) multiplyLong(v types.Long) *bigInteger {
 		rmag = tool.CopyRange(rmag, 1, types.Int(len(rmag)))
 	}
 	return newBigInteger(rmag, rsign)
+}
+
+func (bi *bigInteger) testBit(n types.Int) bool {
+	if n < 0 {
+		panic(errors.New("Negative bit address"))
+	}
+	return (bi.getInt(n.ShiftR(5)) & (1 << (n & 31))) != 0
 }

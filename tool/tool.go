@@ -12,7 +12,13 @@ import (
 **/
 
 func Copy(original []types.Int, length types.Int) []types.Int {
-	return CopyRange(original, 0, length)
+	if length >= types.Int(len(original)) {
+		return CopyRange(original, 0, length)
+	} else {
+		dest := make([]types.Int, length)
+		CopyRangePosLen(original, 0, dest, 0, types.Int(len(original)))
+		return dest
+	}
 }
 
 func CopyRange(original []types.Int, from, to types.Int) []types.Int {
