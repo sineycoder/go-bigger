@@ -123,3 +123,6 @@ func main() {
 ```
 
 if you want to set a precision, you can use `setScale()`. Remenber: The return value must be assigned. (e.g. `res = res.setScale(12, bigger.ROUND_HALF_UP)`)
+
+
+> The details please visit this WebSite:https://blog.csdn.net/a568283992/article/details/119698329
