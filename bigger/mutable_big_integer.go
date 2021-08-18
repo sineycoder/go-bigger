@@ -498,7 +498,7 @@ func (m *mutableBigInteger) divadd(a []types.Int, result []types.Int, offset typ
 	return carry.ToInt()
 }
 
-//The method is the same as mulsub, except the fact that q array is not updated, the only result of the method is borrow flag.
+//Except the fact that q array is not updated, the only result of the method is borrow flag.
 func (m *mutableBigInteger) mulsubBorrow(q []types.Int, a []types.Int, x types.Int, length types.Int, offset types.Int) types.Int {
 	xLong := x.ToLong() & p_LONG_MASK
 	carry := types.Long(0)
@@ -1365,7 +1365,7 @@ func (m *mutableBigInteger) compareHalf(b *mutableBigInteger) types.Int {
 	}
 }
 
-func (m *mutableBigInteger) toBitDecimal(sign types.Int, scale types.Int) *bigDecimal {
+func (m *mutableBigInteger) toBigDecimal(sign types.Int, scale types.Int) *bigDecimal {
 	if m.intLen == 0 || sign == 0 {
 		return zeroValueOf(scale)
 	}

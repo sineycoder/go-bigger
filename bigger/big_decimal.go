@@ -42,6 +42,7 @@ const (
 )
 
 var (
+	p_DIV_NUM_BASE     = types.Long(1) << 32
 	p_ZERO_SCALED_BY   []*bigDecimal
 	p_ZERO_THROUGH_TEN []*bigDecimal
 	p_THRESHOLDS_TABLE = []types.Long{
@@ -912,7 +913,7 @@ func divideAndRoundHalfByBigInteger5(bdividend *bigInteger, ldivisor types.Long,
 		if needIncrementByMutableBigInteger(ldivisor, roundingMode, qsign, mq, r) {
 			mq.add(mutable_one)
 		}
-		return mq.toBitDecimal(qsign, scale)
+		return mq.toBigDecimal(qsign, scale)
 	} else {
 		if preferredScale != scale {
 			compactVal := mq.toCompactValue(qsign)
@@ -922,7 +923,7 @@ func divideAndRoundHalfByBigInteger5(bdividend *bigInteger, ldivisor types.Long,
 			intVal := mq.toBigInteger(qsign)
 			return createAndStripZerosToMatchScaleByBigInteger(intVal, scale, preferredScale)
 		} else {
-			return mq.toBitDecimal(qsign, scale)
+			return mq.toBigDecimal(qsign, scale)
 		}
 	}
 }
@@ -964,7 +965,7 @@ func divideAndRoundByBigInteger5(bdividend *bigInteger, bdivisor *bigInteger, sc
 		if needIncrementMutableBigInteger2(mdivisor, roundingMode, qsign, mq, mr) {
 			mq.add(mutable_one)
 		}
-		return mq.toBitDecimal(qsign, scale)
+		return mq.toBigDecimal(qsign, scale)
 	} else {
 		if preferredScale != scale {
 			compactVal := mq.toCompactValue(qsign)
@@ -974,7 +975,7 @@ func divideAndRoundByBigInteger5(bdividend *bigInteger, bdivisor *bigInteger, sc
 			intVal := mq.toBigInteger(qsign)
 			return createAndStripZerosToMatchScaleByBigInteger(intVal, scale, preferredScale)
 		} else {
-			return mq.toBitDecimal(qsign, scale)
+			return mq.toBigDecimal(qsign, scale)
 		}
 	}
 }
@@ -1119,6 +1120,413 @@ func (b *bigDecimal) inflated() *bigInteger {
 		return BigIntegerValueOf(b.intCompact)
 	}
 	return b.intVal
+}
+
+func (b *bigDecimal) Subtract(subtrahend *bigDecimal) *bigDecimal {
+	if b.intCompact != MIN_INT64 {
+		if subtrahend.intCompact != MIN_INT64 {
+			return add4(b.intCompact, b.scale, -subtrahend.intCompact, subtrahend.scale)
+		} else {
+			return add4_(b.intCompact, b.scale, subtrahend.intVal.negate(), subtrahend.scale)
+		}
+	} else {
+		if subtrahend.intCompact != MIN_INT64 {
+			return add4_(-subtrahend.intCompact, subtrahend.scale, b.intVal, b.scale)
+		} else {
+			return add4__(b.intVal, b.scale, subtrahend.intVal.negate(), subtrahend.scale)
+		}
+	}
+}
+
+func (b *bigDecimal) Multiply(multiplicand *bigDecimal) *bigDecimal {
+	productScale := b.checkScale(b.scale.ToLong() + multiplicand.scale.ToLong())
+	if b.intCompact != MIN_INT64 {
+		if multiplicand.intCompact != MIN_INT64 {
+			return multiply3(b.intCompact, multiplicand.intCompact, productScale)
+		} else {
+			return multiply3_(b.intCompact, multiplicand.intVal, productScale)
+		}
+	} else {
+		if multiplicand.intCompact != MIN_INT64 {
+			return multiply3_(multiplicand.intCompact, b.intVal, productScale)
+		} else {
+			return multiply3__(b.intVal, multiplicand.intVal, productScale)
+		}
+	}
+}
+
+func (b *bigDecimal) Divide(divisor *bigDecimal, scale types.Int, roundingMode RoundingMode) *bigDecimal {
+	if roundingMode < ROUND_UP || roundingMode > ROUND_UNNECESSARY {
+		panic(errors.New("invalid rounding mode"))
+	}
+	if b.intCompact != MIN_INT64 {
+		if divisor.intCompact != MIN_INT64 {
+			return divide6(b.intCompact, b.scale, divisor.intCompact, divisor.scale, scale, roundingMode)
+		} else {
+			return divide6_(b.intCompact, b.scale, divisor.intVal, divisor.scale, scale, roundingMode)
+		}
+	} else {
+		if divisor.intCompact != MIN_INT64 {
+			return divide6__(b.intVal, b.scale, divisor.intCompact, divisor.scale, scale, roundingMode)
+		} else {
+			return divide6___(b.intVal, b.scale, divisor.intVal, divisor.scale, scale, roundingMode)
+		}
+	}
+}
+
+func divide6___(dividend *bigInteger, dividendScale types.Int, divisor *bigInteger, divisorScale types.Int, scale types.Int, roundingMode RoundingMode) *bigDecimal {
+	if checkScaleByBigInteger(dividend, scale.ToLong()+divisorScale.ToLong()) > dividendScale {
+		newScale := scale + divisorScale
+		raise := newScale - dividendScale
+		scaledDividend := bigMultiplyPowerTenByBigInteger(dividend, raise)
+		return divideAndRoundByBigInteger5(scaledDividend, divisor, scale, roundingMode, scale)
+	} else {
+		newScale := checkScaleByBigInteger(divisor, dividendScale.ToLong()-scale.ToLong())
+		raise := newScale - divisorScale
+		scaledDivisor := bigMultiplyPowerTenByBigInteger(divisor, raise)
+		return divideAndRoundByBigInteger5(dividend, scaledDivisor, scale, roundingMode, scale)
+	}
+}
+
+func divide6__(dividend *bigInteger, dividendScale types.Int, divisor types.Long, divisorScale types.Int, scale types.Int, roundingMode RoundingMode) *bigDecimal {
+	if checkScaleByBigInteger(dividend, scale.ToLong()+divisorScale.ToLong()) > dividendScale {
+		newScale := scale + divisorScale
+		raise := newScale - dividendScale
+		scaledDividend := bigMultiplyPowerTenByBigInteger(dividend, raise)
+		return divideAndRoundHalfByBigInteger5(scaledDividend, divisor, scale, roundingMode, scale)
+	} else {
+		newscale := checkScale(divisor, dividendScale.ToLong()-scale.ToLong())
+		raise := newscale - divisorScale
+		if raise < types.Int(len(p_LONG_TEN_POWERS_TABLE)) {
+			ys := divisor
+			ys = longMultiplPowerTen(ys, raise)
+			if ys != MIN_INT64 {
+				return divideAndRoundHalfByBigInteger5(dividend, ys, scale, roundingMode, scale)
+			}
+		}
+		scaledDivisor := bigMultiplyPowerTen(divisor, raise)
+		return divideAndRoundByBigInteger5(dividend, scaledDivisor, scale, roundingMode, scale)
+	}
+}
+
+func divide6_(dividend types.Long, dividendScale types.Int, divisor *bigInteger, divisorScale types.Int, scale types.Int, roundingMode RoundingMode) *bigDecimal {
+	if checkScale(dividend, scale.ToLong()+divisorScale.ToLong()) > dividendScale {
+		newScale := scale + divisorScale
+		raise := newScale - dividendScale
+		scaledDividend := bigMultiplyPowerTen(dividend, raise)
+		return divideAndRoundByBigInteger5(scaledDividend, divisor, scale, roundingMode, scale)
+	} else {
+		newScale := checkScaleByBigInteger(divisor, dividendScale.ToLong()-scale.ToLong())
+		raise := newScale - divisorScale
+		scaledDivisor := bigMultiplyPowerTenByBigInteger(divisor, raise)
+		return divideAndRoundByBigInteger5(BigIntegerValueOf(dividend), scaledDivisor, scale, roundingMode, scale)
+	}
+}
+
+func divide6(dividend types.Long, dividendScale types.Int, divisor types.Long, divisorScale types.Int, scale types.Int, roundingMode RoundingMode) *bigDecimal {
+	if checkScale(dividend, scale.ToLong()+divisorScale.ToLong()) > dividendScale {
+		newScale := scale + divisorScale
+		raise := newScale - dividendScale
+		if raise < types.Int(len(p_LONG_TEN_POWERS_TABLE)) {
+			xs := dividend
+			xs = longMultiplPowerTen(xs, raise)
+			if xs != MIN_INT64 {
+				return divideAndRound5(xs, divisor, scale, roundingMode, scale)
+			}
+			q := multiplyDivideAndRound(p_LONG_TEN_POWERS_TABLE[raise], dividend, divisor, scale, roundingMode, scale)
+			if q != nil {
+				return q
+			}
+		}
+		scaledDividend := bigMultiplyPowerTen(dividend, raise)
+		return divideAndRoundHalfByBigInteger5(scaledDividend, divisor, scale, roundingMode, scale)
+	} else {
+		newScale := checkScale(divisor, divisorScale.ToLong()-scale.ToLong())
+		raise := newScale - divisorScale
+		if raise < types.Int(len(p_LONG_TEN_POWERS_TABLE)) {
+			ys := divisor
+			ys = longMultiplPowerTen(ys, raise)
+			if ys != MIN_INT64 {
+				return divideAndRound5(dividend, ys, scale, roundingMode, scale)
+			}
+		}
+		scaledDivisor := bigMultiplyPowerTen(divisor, raise)
+		return divideAndRoundByBigInteger5(BigIntegerValueOf(dividend), scaledDivisor, scale, roundingMode, scale)
+	}
+}
+
+func multiplyDivideAndRound(dividend0 types.Long, dividend1 types.Long, divisor types.Long, scale types.Int, roundingMode RoundingMode, preferredScale types.Int) *bigDecimal {
+	qsign := dividend0.Signum() * dividend1.Signum() * divisor.Signum()
+	dividend0 = dividend0.Abs()
+	dividend1 = dividend1.Abs()
+	divisor = divisor.Abs()
+
+	d0_hi := dividend0.ShiftR(32)
+	d0_lo := dividend0 & p_LONG_MASK
+	d1_hi := dividend1.ShiftR(32)
+	d1_lo := dividend1 & p_LONG_MASK
+	product := d0_lo * d1_lo
+	d0 := product & p_LONG_MASK
+	d1 := product.ShiftR(32)
+	product = d0_hi*d1_lo + d1
+	d1 = product & p_LONG_MASK
+	d2 := product.ShiftR(32)
+	product = d0_lo*d1_hi + d1
+	d1 = product & p_LONG_MASK
+	d2 += product.ShiftR(32)
+	d3 := d2.ShiftR(32)
+	d2 &= p_LONG_MASK
+	product = d0_hi*d1_hi + d2
+	d2 = product & p_LONG_MASK
+	d3 = (product.ShiftR(32) + d3) & p_LONG_MASK
+	dividendHi := make64(d3, d2)
+	dividendLo := make64(d1, d0)
+	//divide
+	return divideAndRound128(dividendHi, dividendLo, divisor, qsign, scale, roundingMode, preferredScale)
+}
+
+func divideAndRound128(dividendHi types.Long, dividendLo types.Long, divisor types.Long, sign types.Int, scale types.Int, roundingMode RoundingMode, preferredScale types.Int) *bigDecimal {
+	if dividendHi >= divisor {
+		return nil
+	}
+
+	shift := NumberOfLeadingZerosForLong(divisor)
+	divisor <<= shift
+
+	v1 := divisor.ShiftR(32)
+	v0 := divisor & p_LONG_MASK
+
+	var tmp types.Long
+	tmp = dividendLo << shift
+	u1 := tmp.ShiftR(32)
+	u0 := tmp & p_LONG_MASK
+
+	tmp = (dividendHi << shift) | (dividendLo.ShiftR(64 - shift))
+	u2 := tmp & p_LONG_MASK
+	var q1, r_tmp types.Long
+	if v1 == 1 {
+		q1 = tmp
+		r_tmp = 0
+	} else if tmp >= 0 {
+		q1 = tmp / v1
+		r_tmp = tmp - q1*v1
+	} else {
+		rq := divRemNegativeLong(tmp, v1)
+		q1 = rq[1]
+		r_tmp = rq[0]
+	}
+
+	for q1 >= p_DIV_NUM_BASE || unsignedLongCompare(q1*v0, make64(r_tmp, u1)) {
+		q1--
+		r_tmp += v1
+		if r_tmp >= p_DIV_NUM_BASE {
+			break
+		}
+	}
+
+	tmp = mulsub(u2, u1, v1, v0, q1)
+	u1 = tmp & p_LONG_MASK
+	var q0 types.Long
+	if v1 == 1 {
+		q0 = tmp
+		r_tmp = 0
+	} else if tmp >= 0 {
+		q0 = tmp / v1
+		r_tmp = tmp - q0*v1
+	} else {
+		rq := divRemNegativeLong(tmp, v1)
+		q0 = rq[1]
+		r_tmp = rq[0]
+	}
+
+	for q0 >= p_DIV_NUM_BASE || unsignedLongCompare(q0*v0, make64(r_tmp, u0)) {
+		q0--
+		r_tmp += v1
+		if r_tmp >= p_DIV_NUM_BASE {
+			break
+		}
+	}
+
+	if q1.ToInt() < 0 {
+		mq := newMutableBigIntegerArray([]types.Int{q1.ToInt(), q0.ToInt()})
+		if roundingMode == ROUND_DOWN && scale == preferredScale {
+			return mq.toBigDecimal(sign, scale)
+		}
+		r := mulsub(u1, u0, v1, v0, q0).ShiftR(shift)
+		if r != 0 {
+			if needIncrementMutableBigInteger(divisor.ShiftR(shift), roundingMode, sign, mq, r) {
+				mq.add(mutable_one)
+			}
+			return mq.toBigDecimal(sign, scale)
+		} else {
+		}
+		if preferredScale != scale {
+			intVal := mq.toBigInteger(sign)
+			return createAndStripZerosToMatchScaleByBigInteger(intVal, scale, preferredScale)
+		} else {
+			return mq.toBigDecimal(sign, scale)
+		}
+	}
+
+	q := make64(q1, q0)
+	q *= sign.ToLong()
+	if roundingMode == ROUND_DOWN && scale == preferredScale {
+		return valueOf(q, scale)
+	}
+
+	r := mulsub(u1, u0, v1, v0, q0).ShiftR(shift)
+	if r != 0 {
+		incr := needIncrement(divisor.ShiftR(shift), roundingMode, sign, q, r)
+		if incr {
+			return valueOf(q+sign.ToLong(), scale)
+		} else {
+			return valueOf(q, scale)
+		}
+	} else {
+		if preferredScale != scale {
+			return createAndStripZerosToMatchScale(q, scale, preferredScale)
+		} else {
+			return valueOf(q, scale)
+		}
+	}
+}
+
+func mulsub(u1 types.Long, u0 types.Long, v1 types.Long, v0 types.Long, q0 types.Long) types.Long {
+	tmp := u0 - q0*v0
+	return make64(u1+tmp.ShiftR(32)-q0*v1, tmp&p_LONG_MASK)
+}
+
+func divRemNegativeLong(n types.Long, d types.Long) []types.Long {
+	if n >= 0 {
+		panic(errors.New("Non-negative numberator"))
+	}
+	if d == 1 {
+		panic(errors.New("Unity denominator"))
+	}
+	q := n.ShiftR(1) / d.ShiftR(1)
+	r := n - q*d
+	for r < 0 {
+		r += d
+		q--
+	}
+	for r >= d {
+		r -= d
+		q++
+	}
+	return []types.Long{r, q}
+}
+
+func make64(hi types.Long, lo types.Long) types.Long {
+	return hi<<32 | lo
+}
+
+func multiply3__(x, y *bigInteger, scale types.Int) *bigDecimal {
+	return newBigDecimalByBigInteger(x.Multiply(y), MIN_INT64, scale, 0)
+}
+
+func multiply3_(x types.Long, y *bigInteger, scale types.Int) *bigDecimal {
+	if x == 0 {
+		return zeroValueOf(scale)
+	}
+	return newBigDecimalByBigInteger(y.multiplyLong(x), MIN_INT64, scale, 0)
+}
+
+func multiply3(x, y types.Long, scale types.Int) *bigDecimal {
+	product := multiply2(x, y)
+	if product != MIN_INT64 {
+		return valueOf(product, scale)
+	}
+	return newBigDecimalByBigInteger(BigIntegerValueOf(x).multiplyLong(y), MIN_INT64, scale, 0)
+}
+
+func multiply2(x, y types.Long) types.Long {
+	product := x * y
+	ax := x.Abs()
+	ay := y.Abs()
+	if (ax|ay).ShiftR(31) == 0 || y == 0 || (product/y == x) {
+		return product
+	}
+	return MIN_INT64
+}
+
+func add4__(fst *bigInteger, scale1 types.Int, snd *bigInteger, scale2 types.Int) *bigDecimal {
+	rscale := scale1
+	sdiff := rscale.ToLong() - scale2.ToLong()
+	if sdiff != 0 {
+		if sdiff < 0 {
+			raise := checkScaleByBigInteger(fst, -sdiff)
+			rscale = scale2
+			fst = bigMultiplyPowerTenByBigInteger(fst, raise)
+		} else {
+			raise := checkScaleByBigInteger(snd, sdiff)
+			snd = bigMultiplyPowerTenByBigInteger(snd, raise)
+		}
+	}
+	sum := fst.Add(snd)
+	if fst.signum == snd.signum {
+		return newBigDecimalByBigInteger(sum, MIN_INT64, rscale, 0)
+	} else {
+		return valueOf3(sum, rscale, 0)
+	}
+}
+
+func add4_(xs types.Long, scale1 types.Int, snd *bigInteger, scale2 types.Int) *bigDecimal {
+	rscale := scale1
+	sdiff := rscale.ToLong() - scale2.ToLong()
+	sameSigns := (((xs >> 63) | (-xs).ShiftR(63)).ToInt()) == snd.signum // (int) ((i >> 63) | (-i >>> 63))
+	var sum *bigInteger
+	if sdiff < 0 {
+		raise := checkScale(xs, -sdiff)
+		rscale = scale2
+		scaledX := longMultiplPowerTen(xs, raise)
+		if scaledX == MIN_INT64 {
+			sum = snd.Add(bigMultiplyPowerTen(xs, raise))
+		} else {
+			sum = snd.add(scaledX)
+		}
+	} else {
+		raise := checkScaleByBigInteger(snd, sdiff)
+		snd = bigMultiplyPowerTenByBigInteger(snd, raise)
+		sum = snd.add(xs)
+	}
+	if sameSigns {
+		return newBigDecimalByBigInteger(sum, MIN_INT64, rscale, 0)
+	} else {
+		return valueOf3(sum, rscale, 0)
+	}
+}
+
+func add4(xs types.Long, scale1 types.Int, ys types.Long, scale2 types.Int) *bigDecimal {
+	sdiff := scale1.ToLong() - scale2.ToLong()
+	if sdiff == 0 {
+		return add3(xs, ys, scale1)
+	} else if sdiff < 0 {
+		raise := checkScale(xs, -sdiff)
+		scaledX := longMultiplPowerTen(xs, raise)
+		if scaledX != MIN_INT64 {
+			return add3(scaledX, ys, scale2)
+		} else {
+			bigsum := bigMultiplyPowerTen(xs, raise).add(ys)
+			if (xs ^ ys) >= 0 {
+				return newBigDecimalByBigInteger(bigsum, MIN_INT64, scale2, 0)
+			} else {
+				return valueOf3(bigsum, scale2, 0)
+			}
+		}
+	} else {
+		raise := checkScale(ys, sdiff)
+		scaledY := longMultiplPowerTen(ys, raise)
+		if scaledY != MIN_INT64 {
+			return add3(xs, scaledY, scale1)
+		} else {
+			bigsum := bigMultiplyPowerTen(ys, raise).add(xs)
+			if (xs ^ ys) >= 0 {
+				return newBigDecimalByBigInteger(bigsum, MIN_INT64, scale1, 0)
+			} else {
+				return valueOf3(bigsum, scale1, 0)
+			}
+		}
+	}
 }
 
 func checkScale(intCompact types.Long, val types.Long) types.Int {

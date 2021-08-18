@@ -56,3 +56,7 @@ func (l Long) String() string {
 func (l Long) Abs() Long {
 	return Long(math.Abs(float64(l)))
 }
+
+func (l Long) Signum() Int {
+	return ((l >> 63) | (-l).ShiftR(63)).ToInt()
+}
