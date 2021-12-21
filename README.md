@@ -1,18 +1,20 @@
 # go-biggier
+
 a go lang big integer lib
 
 **refer to java BigInteger**
 
-> In the go language, we know that there are only `byte`, `int32`, and `int64` for integers, while float have only `float32` and `float64`. Sometimes we need to use large number operations according to your needs. The `big` package in go with `NewInt` and `NewFloat`, but there are fewer APIs, and only basic types can be used for initialization. You cannot use a string for initialization. So I developed `go-bigger` with reference to Java's large number classes and provided a rich API calls.
+> In the go language, we know that there are only `byte`, `int32`, and `int64` for integers, float have only `float32` and `float64`. Sometimes we need to use large number operations according to your needs. The `big` package in go with `NewInt` and `NewFloat`, but there are fewer APIs, and only basic types can be used for initialization. You cannot use a string for initialization. So I developed `go-bigger` that reference to Java's large number classes and provided a rich API calls.
 
 ## 1. Import module
+
 > go get github.com/sineycoder/go-bigger
 
 ## 2. BigInteger
 
 **In BigInteger, we cached |x| < 16 BigInteger**
 
-> you can use `big_integer.NewBigIntegerInt(1231221)` or `big_integer.ValueOf(6782613786431)` to initialize a BigInteger. If use `ValueOf` and whithin 16, it returns a chache BigInteger.
+> you can use `big_integer.NewBigIntegerInt(1231221)` or `big_integer.ValueOf(6782613786431)` to initialize a BigInteger. If use `ValueOf` and within 16, it returns a cache BigInteger.
 
 ### 2.1 Add
 
