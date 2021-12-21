@@ -14,14 +14,16 @@ a go lang big integer lib
 
 **In BigInteger, we cached |x| < 16 BigInteger**
 
+
 > you can use `big_integer.NewBigIntegerInt(1231221)` or `big_integer.ValueOf(6782613786431)` to initialize a BigInteger. If use `ValueOf` and within 16, it returns a cache BigInteger.
+
 
 ### 2.1 Add
 
 ```
 func main() {
-	a := big_integer.ValueOf(6782613786431)
-	b := big_integer.ValueOf(-678261378231)
+	a := bigger.BigIntegerValueOf(6782613786431)
+	b := bigger.BigIntegerValueOf(-678261378231)
 	res := a.Add(b)
 	fmt.Println(res.String())
 }
@@ -33,8 +35,8 @@ func main() {
 
 ```
 func main() {
-	a := big_integer.ValueOf(6782613786431)
-	b := big_integer.ValueOf(-678261378231)
+	a := bigger.BigIntegerValueOf(6782613786431)
+	b := bigger.BigIntegerValueOf(-678261378231)
 	res := a.Subtract(b)
 	fmt.Println(res.String())
 }
@@ -46,8 +48,8 @@ func main() {
 
 ```
 func main() {
-	a := big_integer.ValueOf(6782613786431)
-	b := big_integer.ValueOf(-678261378231)
+	a := bigger.BigIntegerValueOf(6782613786431)
+	b := bigger.BigIntegerValueOf(-678261378231)
 	res := a.Divide(b)
 	fmt.Println(res.String())
 }
@@ -59,8 +61,8 @@ func main() {
 
 ```
 func main() {
-	a := big_integer.ValueOf(6782613786431)
-	b := big_integer.ValueOf(-678261378231)
+	a := bigger.BigIntegerValueOf(6782613786431)
+	b := bigger.BigIntegerValueOf(-678261378231)
 	res := a.Multiply(b)
 	fmt.Println(res.String())
 }
@@ -70,6 +72,61 @@ func main() {
 
 ## 3.BigDecimal
 
-> developing...
+> you can use `bigger.NewBigDecimalString("123123.111")` or `bigger.BigDecimalValueOf(6782613786431.111)` to initialize a BigInteger. If use `BigDecimalValueOf` and whithin 10, it returns a chache BigDecimal.
+
+### 3.1 Add
+
+```
+func main() {
+	a := bigger.BigDecimalValueOf(6782613786431)
+	b := bigger.BigDecimalValueOf(-678261378231)
+	res := a.Add(b)
+	fmt.Println(res.String())
+}
+
+// result：6104352408200
+```
+
+### 3.2 Subtract
+
+```
+func main() {
+	a := bigger.BigDecimalValueOf(6782613786431)
+	b := bigger.BigDecimalValueOf(-678261378231)
+	res := a.Subtract(b)
+	fmt.Println(res.String())
+}
+
+// result：7460875164662
+```
+
+### 3.3 Divide
+
+```
+func main() {
+	a := bigger.BigDecimalValueOf(6782613786431)
+	b := bigger.BigDecimalValueOf(-678261378231)
+	res := a.Divide(b, 12, bigger.ROUND_HALF_UP)
+	fmt.Println(res.String())
+}
+
+// result： -10.000000006076 
+```
+
+### 3.4 Multiply
+
+```
+func main() {
+	a := bigger.BigDecimalValueOf(6782613786431)
+	b := bigger.BigDecimalValueOf(-678261378231)
+	res := a.Multiply(b)
+	fmt.Println(res.String())
+}
+
+// result：-4600384974793271546583561
+```
+
+if you want to set a precision, you can use `setScale()`. Remenber: The return value must be assigned. (e.g. `res = res.setScale(12, bigger.ROUND_HALF_UP)`)
 
 
+> The details please visit this WebSite:https://blog.csdn.net/a568283992/article/details/119698329
