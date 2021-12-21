@@ -2015,3 +2015,13 @@ func (bi *bigInteger) And(val *bigInteger) *bigInteger {
 	}
 	return valueOf1(result)
 }
+
+// Returns a BigInteger whose value is (bi & ^val)
+func (bi *bigInteger) AndNot(val *bigInteger) *bigInteger {
+	var result = make([]types.Int, tool.MaxInt(bi.intLength(), val.intLength()))
+	for i := 0; i < len(result); i++ {
+		result[i] = (bi.getInt(types.Int(len(result) - i - 1))) &
+			^val.getInt(types.Int(len(result)-i-1))
+	}
+	return valueOf1(result)
+}

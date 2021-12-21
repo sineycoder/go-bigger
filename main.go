@@ -12,5 +12,5 @@ import (
 func main() {
 	a := bigger.NewBigIntegerString("1")
 	b := bigger.NewBigIntegerString("2")
-	fmt.Println(a.And(b))
+	fmt.Println(a.AndNot(b))
 }
