@@ -236,6 +236,56 @@ func subtract_(big, little []types.Int) []types.Int {
 	return result
 }
 
+func newBigIntegerOne(val []types.Int) *bigInteger {
+	if len(val) == 0 {
+		panic(errors.New("Zero length BigInteger"))
+	}
+	b := &bigInteger{}
+	if val[0] < 0 {
+		b.mag = makePositive(val)
+		b.signum = -1
+	} else {
+		b.mag = trustedStripLeadingZeroInts(val)
+		if len(b.mag) != 0 {
+			b.signum = 1
+		}
+	}
+	if types.Int(len(b.mag)) >= p_MAX_MAG_LENGTH {
+		b.checkRange()
+	}
+	return b
+}
+
+func makePositive(a []types.Int) []types.Int {
+	var keep, j types.Int
+	for keep = 0; keep < types.Int(len(a)) && a[keep] == -1; keep++ {
+	}
+
+	for j = keep; j < types.Int(len(a)) && a[j] == 0; j++ {
+	}
+	var (
+		extraInt types.Int
+		result   []types.Int
+	)
+	if j == types.Int(len(a)) {
+		extraInt = 1
+	}
+	result = make([]types.Int, types.Int(len(a))-keep+extraInt)
+
+	for i := keep; i < types.Int(len(a)); i++ {
+		result[i-keep+extraInt] = ^a[i]
+	}
+
+	for i := types.Int(len(result)) - 1; ; i-- {
+		result[i]++
+		if result[i] != 0 {
+			break
+		}
+	}
+
+	return result
+}
+
 func newBigInteger(magnitude []types.Int, signum types.Int) *bigInteger {
 	b := &bigInteger{}
 	if len(magnitude) == 0 {
@@ -1607,7 +1657,7 @@ func NumberOfTrailingZeros(i types.Int) types.Int {
 	return n - (i << 1).ShiftR(31)
 }
 
-// BigIntegerValueOf, if |val| <= 16, return posConst cache
+// BigIntegerValueOf if |val| <= 16, return posConst cache
 func BigIntegerValueOf(val types.Long) *bigInteger {
 	if val == 0 {
 		return ZERO
@@ -1942,4 +1992,26 @@ func (bi *bigInteger) testBit(n types.Int) bool {
 		panic(errors.New("Negative bit address"))
 	}
 	return (bi.getInt(n.ShiftR(5)) & (1 << (n & 31))) != 0
+}
+
+func (bi *bigInteger) intLength() types.Int {
+	return bi.BitLength().ShiftR(5) + 1
+}
+
+func valueOf1(val []types.Int) *bigInteger {
+	if val[0] > 0 {
+		return newBigInteger(val, 1)
+	}
+	return newBigIntegerOne(val)
+}
+
+// Returns a BigInteger whose value is (bi & val) if val and bi both are negative
+// Return negative BigInteger
+func (bi *bigInteger) And(val *bigInteger) *bigInteger {
+	var result = make([]types.Int, tool.MaxInt(bi.intLength(), val.intLength()))
+	for i := 0; i < len(result); i++ {
+		result[i] = (bi.getInt(types.Int(len(result) - i - 1))) &
+			val.getInt(types.Int(len(result)-i-1))
+	}
+	return valueOf1(result)
 }
