@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/sineycoder/go-bigger/tool"
-	"github.com/sineycoder/go-bigger/types"
 	"math"
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/sineycoder/go-bigger/tool"
+	"github.com/sineycoder/go-bigger/types"
 )
 
 /**
@@ -1352,6 +1353,29 @@ func trustedStripLeadingZeroInts(val []types.Int) []types.Int {
 	}
 }
 
+func stripLeadingZeroInts(a []byte) []types.Int {
+	var byteLength = types.Int(len(a))
+	var keep types.Int
+
+	for keep = 0; keep < byteLength && a[keep] == 0; keep++ {
+	}
+
+	var intLength = ((byteLength - keep) + 3).ShiftR(2)
+	var result = make([]types.Int, intLength)
+	var b = byteLength - 1
+	for i := intLength - 1; i >= 0; i-- {
+		result[i] = types.Int(a[b]) & 0xff
+		b--
+		bytesRemaining := b - keep + 1
+		bytesToTransfer := tool.MinInt(3, bytesRemaining)
+		for j := types.Int(8); j <= (bytesToTransfer << 3); j += 8 {
+			result[i] |= (types.Int(a[b]) & 0xff) << j
+			b--
+		}
+	}
+	return result
+}
+
 func squareToLen(x []types.Int, length types.Int, z []types.Int) []types.Int {
 	zlen := length << 1
 	if z == nil || types.Int(len(z)) < zlen {
@@ -1692,6 +1716,28 @@ func NewBigIntegerString(val string) *bigInteger {
 	return NewBigIntegerStringRadix(val, 10)
 }
 
+func NewBigIntegerBytes(val []byte) *bigInteger {
+	if len(val) == 0 {
+		panic(errors.New("zero length"))
+	}
+	b := &bigInteger{}
+	if val[0] < 0 {
+		b.mag = makePositive(tool.ByteToInt(val))
+		b.signum = -1
+	} else {
+		b.mag = stripLeadingZeroInts(val)
+		if len(b.mag) == 0 {
+			b.signum = 0
+		} else {
+			b.signum = 1
+		}
+	}
+	if types.Int(len(b.mag)) >= p_MAX_MAG_LENGTH {
+		b.checkRange()
+	}
+	return b
+}
+
 func NewBigIntegerStringRadix(val string, radix types.Int) *bigInteger {
 	b := &bigInteger{}
 	var cursor, numDigits types.Int
@@ -2022,6 +2068,14 @@ func (bi *bigInteger) AndNot(val *bigInteger) *bigInteger {
 	for i := 0; i < len(result); i++ {
 		result[i] = (bi.getInt(types.Int(len(result) - i - 1))) &
 			^val.getInt(types.Int(len(result)-i-1))
+	}
+	return valueOf1(result)
+}
+
+func (bi *bigInteger) Xor(val *bigInteger) *bigInteger {
+	var result = make([]types.Int, tool.MaxInt(bi.intLength(), val.intLength()))
+	for i := types.Int(0); i < types.Int(len(result)); i++ {
+		result[i] = bi.getInt(types.Int(len(result))-i-1) ^ val.getInt(types.Int(len(result))-i-1)
 	}
 	return valueOf1(result)
 }

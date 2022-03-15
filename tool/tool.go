@@ -2,8 +2,9 @@ package tool
 
 import (
 	"errors"
-	"github.com/sineycoder/go-bigger/types"
 	"math"
+
+	"github.com/sineycoder/go-bigger/types"
 )
 
 /**
@@ -105,4 +106,12 @@ func Arraycopy(src []types.Int, srcPos types.Int, dest []types.Int, destPos, len
 	for i := types.Int(0); i < length; i++ {
 		dest[destPos+i] = src[srcPos+i]
 	}
+}
+
+func ByteToInt(val []byte) (ret []types.Int) {
+	ret = make([]types.Int, len(val))
+	for idx, _ := range val {
+		ret[idx] = types.Int(val[idx])
+	}
+	return ret
 }
